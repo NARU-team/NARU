@@ -1,0 +1,26 @@
+# 개인 기획 문서 (레포에 올리지 않음)
+NARU_기획서.md
+NARU_차박모드_설계.md
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+captures/
+*.apk
+*.aab
+.externalNativeBuild/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# 비밀 키
+.env
+*.keystore
+*.jks
+secrets.properties

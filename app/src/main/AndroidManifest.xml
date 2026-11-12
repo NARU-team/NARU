@@ -25,6 +25,7 @@
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
 
     <application
+        android:name=".NaruApplication"
         android:allowBackup="false"
         android:label="@string/app_name"
         android:supportsRtl="true"

@@ -4,7 +4,16 @@ import ai.naru.app.camping.arrival.ArrivalAssessment
 import ai.naru.app.camping.arrival.ArrivalRules
 import ai.naru.app.camping.arrival.Site
 import ai.naru.app.camping.arrival.SiteConditions
+import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.arrival.SiteRepository
+import ai.naru.app.camping.bedtime.BedtimeRules
+import ai.naru.app.camping.bedtime.BedtimeSettings
+import ai.naru.app.camping.bedtime.NightPreparer
+import ai.naru.app.camping.bedtime.TemperatureApply
+import ai.naru.app.camping.bedtime.TemperatureRecommendation
+import ai.naru.app.camping.bedtime.VehicleBackup
+import ai.naru.app.camping.bedtime.WakeBasis
+import java.time.LocalTime
 import ai.naru.app.vehicle.Gear
 import ai.naru.app.vehicle.VehicleGateway
 import androidx.lifecycle.ViewModel
@@ -28,6 +37,21 @@ data class CampingUiState(
     val sites: List<Site> = emptyList(),
     /** 도착 단계: 고른 장소와 그 판정 결과 */
     val arrival: ArrivalState? = null,
+    /** 취침 준비 단계: 오늘 밤 설정 */
+    val bedtime: BedtimeState? = null,
+    /** 세션 시작 전 원래 차량 설정. 기상 단계에서 복구에 쓴다. */
+    val backup: VehicleBackup? = null,
+    /** 설정 온도 적용 결과. 밤 화면에서 안내한다. */
+    val temperatureApply: TemperatureApply? = null,
+)
+
+data class BedtimeState(
+    val settings: BedtimeSettings,
+    val recommendation: TemperatureRecommendation,
+    val sunrise: LocalTime?,
+    val vehicleTempRange: ClosedFloatingPointRange<Float>?,
+    /** 차박 시작하기를 누른 뒤 차량 준비 중 */
+    val preparing: Boolean = false,
 )
 
 data class ArrivalState(
@@ -46,6 +70,8 @@ class CampingViewModel(
     private val vehicle: VehicleGateway,
     private val siteRepository: SiteRepository,
 ) : ViewModel() {
+
+    private val nightPreparer = NightPreparer(vehicle)
 
     private val _state = MutableStateFlow(CampingUiState())
     val state: StateFlow<CampingUiState> = _state.asStateFlow()
@@ -81,13 +107,75 @@ class CampingViewModel(
         }
     }
 
-    /** 판정 결과를 확인한 뒤에만 다음 단계로 넘어간다. */
+    /** 판정 결과를 확인한 뒤에만 다음 단계로 넘어간다. 넘어가면 오늘 밤 설정의 추천값을 만든다. */
     fun confirmArrival() {
-        if (_state.value.arrival == null) return
+        val arrival = _state.value.arrival ?: return
         dispatch(CampingEvent.ConfirmArrival)
+        if (_state.value.stage != CampingStage.BEDTIME_PREP) return
+        viewModelScope.launch {
+            val range = vehicle.capabilities().targetTemperatureRange
+            val recommendation = BedtimeRules.recommendTemperature(
+                minTempC = arrival.conditions.weather?.minTempC,
+                batteryPercent = _state.value.batteryPercent,
+                vehicleRange = range,
+            )
+            val settings = BedtimeSettings(
+                targetTempC = recommendation.celsius,
+                wakeAt = DEFAULT_WAKE_AT,
+                wakeBasis = WakeBasis.MANUAL,
+                theme = arrival.site.placeType,
+            )
+            _state.update {
+                it.copy(bedtime = BedtimeState(settings, recommendation, arrival.conditions.sunrise, range))
+            }
+        }
     }
 
-    fun startNight() = dispatch(CampingEvent.StartNight)
+    // --- 취침 준비 단계 ---
+
+    fun adjustTemperature(steps: Int) = updateBedtime { bedtime ->
+        val next = BedtimeRules.adjustTemperature(bedtime.settings.targetTempC, steps, bedtime.vehicleTempRange)
+        bedtime.copy(settings = bedtime.settings.copy(targetTempC = next))
+    }
+
+    fun adjustWakeTime(minutes: Long) = updateBedtime { bedtime ->
+        val next = bedtime.settings.wakeAt.plusMinutes(minutes)
+        bedtime.copy(settings = bedtime.settings.copy(wakeAt = next, wakeBasis = WakeBasis.MANUAL))
+    }
+
+    fun wakeAtSunrise() = updateBedtime { bedtime ->
+        val sunrise = bedtime.sunrise ?: return@updateBedtime bedtime
+        bedtime.copy(settings = bedtime.settings.copy(wakeAt = sunrise, wakeBasis = WakeBasis.SUNRISE))
+    }
+
+    fun selectTheme(theme: PlaceType) = updateBedtime { bedtime ->
+        bedtime.copy(settings = bedtime.settings.copy(theme = theme))
+    }
+
+    /**
+     * 사용자 승인. 원래 설정을 백업하고 설정 온도를 적용한 뒤 밤 단계로 넘어간다.
+     * 제어가 실패해도 세션은 계속한다 (화면·음향·알람 중심으로 제공).
+     */
+    fun startNight() {
+        val bedtime = _state.value.bedtime ?: return
+        if (bedtime.preparing) return
+        _state.update { it.copy(bedtime = bedtime.copy(preparing = true)) }
+        viewModelScope.launch {
+            val preparation = nightPreparer.prepare(bedtime.settings)
+            _state.update {
+                it.copy(
+                    backup = preparation.backup,
+                    temperatureApply = preparation.temperature,
+                    bedtime = it.bedtime?.copy(preparing = false),
+                )
+            }
+            dispatch(CampingEvent.StartNight)
+        }
+    }
+
+    private fun updateBedtime(transform: (BedtimeState) -> BedtimeState) {
+        _state.update { state -> state.bedtime?.let { state.copy(bedtime = transform(it)) } ?: state }
+    }
 
     /** TODO(다음 이슈): 실제 설정 복구가 끝나면 호출되도록 바꾼다. 지금은 버튼으로 대신한다. */
     fun finishRestore() = dispatch(CampingEvent.Restored)
@@ -108,8 +196,11 @@ class CampingViewModel(
                     // 새 세션을 시작하면 지난 종료 이유는 지운다.
                     lastEndReason = if (event is CampingEvent.Start) null else result.reason ?: it.lastEndReason,
                     message = null,
-                    // 새 세션을 시작하면 지난 도착 판정은 지운다.
+                    // 새 세션을 시작하면 지난 세션의 판정·설정·백업은 지운다.
                     arrival = if (event is CampingEvent.Start) null else it.arrival,
+                    bedtime = if (event is CampingEvent.Start) null else it.bedtime,
+                    backup = if (event is CampingEvent.Start) null else it.backup,
+                    temperatureApply = if (event is CampingEvent.Start) null else it.temperatureApply,
                 )
             }
             is CampingTransition.Rejected -> {
@@ -120,5 +211,9 @@ class CampingViewModel(
                 }
             }
         }
+    }
+
+    private companion object {
+        val DEFAULT_WAKE_AT: LocalTime = LocalTime.of(7, 0)
     }
 }

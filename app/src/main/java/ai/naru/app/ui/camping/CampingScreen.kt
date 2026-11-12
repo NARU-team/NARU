@@ -28,7 +28,7 @@ data class CampingActions(
     val onStart: () -> Unit = {},
     val onSelectSite: (Site) -> Unit = {},
     val onConfirmArrival: () -> Unit = {},
-    val onStartNight: () -> Unit = {},
+    val bedtime: BedtimeActions = BedtimeActions(),
     val onFinishRestore: () -> Unit = {},
     val onDismissMessage: () -> Unit = {},
     val onBack: () -> Unit = {},
@@ -89,15 +89,12 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
             onConfirm = actions.onConfirmArrival,
         )
 
-        CampingStage.BEDTIME_PREP -> {
-            // TODO(다음 이슈): 추천 온도, 기상 시각·일출 안내, 아침 예상 잔량, 테마 선택
-            Placeholder("온도·기상 시각·테마 설정이 여기에 표시돼요.")
-            Button(onClick = actions.onStartNight) { Text("차박 시작하기") }
-        }
+        CampingStage.BEDTIME_PREP -> BedtimeContent(bedtime = state.bedtime, actions = actions.bedtime)
 
         CampingStage.NIGHT -> {
-            // TODO(다음 이슈): 장소 테마(조명·음향), 기상 예정 시각, 배터리 하한 경고
-            Placeholder("밤 테마가 적용되는 화면이에요. 기상 시각이나 배터리 하한에서 아침으로 넘어가요.")
+            NightSummary(settings = state.bedtime?.settings, temperatureApply = state.temperatureApply)
+            // TODO(다음 이슈): 장소 테마(조명·음향) 적용, 배터리 하한 감시
+            Placeholder("기상 시각이나 배터리 하한에서 아침으로 넘어가요.")
         }
 
         CampingStage.MORNING -> {

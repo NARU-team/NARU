@@ -9,15 +9,22 @@ import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.camping.bedtime.BedtimeRules
 import ai.naru.app.camping.bedtime.BedtimeSettings
 import ai.naru.app.camping.bedtime.NightPreparer
-import ai.naru.app.camping.bedtime.TemperatureApply
+import ai.naru.app.camping.bedtime.ControlResult
 import ai.naru.app.camping.bedtime.TemperatureRecommendation
 import ai.naru.app.camping.bedtime.VehicleBackup
 import ai.naru.app.camping.bedtime.WakeBasis
+import ai.naru.app.camping.night.NightRules
+import ai.naru.app.camping.night.NightSound
+import ai.naru.app.camping.night.ThemeLightApplier
+import java.time.LocalDateTime
 import java.time.LocalTime
 import ai.naru.app.vehicle.Gear
 import ai.naru.app.vehicle.VehicleGateway
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +49,15 @@ data class CampingUiState(
     /** 세션 시작 전 원래 차량 설정. 기상 단계에서 복구에 쓴다. */
     val backup: VehicleBackup? = null,
     /** 설정 온도 적용 결과. 밤 화면에서 안내한다. */
-    val temperatureApply: TemperatureApply? = null,
+    val temperatureApply: ControlResult? = null,
+    /** 밤 단계: 테마 조명 적용 결과 */
+    val lightApply: ControlResult? = null,
+    /** 밤 단계: 사용자가 테마 소리를 켜 두었는지 */
+    val soundOn: Boolean = true,
+    /** 밤 단계: 실제로 소리가 나고 있는지 (오디오 포커스를 못 받으면 false) */
+    val soundPlaying: Boolean = false,
+    /** 밤 단계: 아침으로 넘어갈 일시 */
+    val wakeDateTime: LocalDateTime? = null,
 )
 
 data class BedtimeState(
@@ -69,9 +84,14 @@ data class ArrivalState(
 class CampingViewModel(
     private val vehicle: VehicleGateway,
     private val siteRepository: SiteRepository,
+    private val sound: NightSound,
 ) : ViewModel() {
 
     private val nightPreparer = NightPreparer(vehicle)
+    private val themeLightApplier = ThemeLightApplier(vehicle)
+
+    /** 밤 단계 동안만 도는 작업 (조명 적용, 기상 시각 확인). 밤을 벗어나면 취소한다. */
+    private var nightJob: Job? = null
 
     private val _state = MutableStateFlow(CampingUiState())
     val state: StateFlow<CampingUiState> = _state.asStateFlow()
@@ -86,6 +106,7 @@ class CampingViewModel(
         viewModelScope.launch {
             vehicle.batteryPercent.collect { percent ->
                 _state.update { it.copy(batteryPercent = percent) }
+                checkBatteryLimit()
             }
         }
         viewModelScope.launch {
@@ -186,22 +207,74 @@ class CampingViewModel(
 
     fun simulateWakeTime() = dispatch(CampingEvent.WakeTimeReached)
 
-    fun simulateBatteryLow() = dispatch(CampingEvent.BatteryLow)
+    // --- 밤 단계 ---
+
+    /** 테마 소리 켜기/끄기 */
+    fun toggleSound() {
+        val turnOn = !_state.value.soundOn
+        _state.update { it.copy(soundOn = turnOn) }
+        if (_state.value.stage != CampingStage.NIGHT) return
+        if (turnOn) playThemeSound() else stopThemeSound()
+    }
+
+    private fun onEnterNight() {
+        val settings = _state.value.bedtime?.settings ?: return
+        val wakeDateTime = NightRules.nextWakeDateTime(LocalDateTime.now(), settings.wakeAt)
+        _state.update { it.copy(wakeDateTime = wakeDateTime) }
+        if (_state.value.soundOn) playThemeSound()
+        checkBatteryLimit()
+
+        nightJob = viewModelScope.launch {
+            val lightResult = themeLightApplier.apply(settings.theme)
+            _state.update { it.copy(lightApply = lightResult) }
+
+            // 앱이 켜져 있는 동안 기상 시각을 확인한다. TODO(미확정): Suspend 상태에서의 알람
+            while (isActive) {
+                if (NightRules.isWakeTimeReached(LocalDateTime.now(), wakeDateTime)) {
+                    dispatch(CampingEvent.WakeTimeReached)
+                    break
+                }
+                delay(WAKE_CHECK_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun onLeaveNight() {
+        nightJob?.cancel()
+        nightJob = null
+        stopThemeSound()
+    }
+
+    /** 밤 단계에서 배터리가 하한에 닿으면 경고와 함께 아침으로 넘긴다. */
+    private fun checkBatteryLimit() {
+        val state = _state.value
+        if (state.stage == CampingStage.NIGHT && NightRules.isBatteryAtLimit(state.batteryPercent)) {
+            dispatch(CampingEvent.BatteryLow)
+        }
+    }
+
+    private fun playThemeSound() {
+        val theme = _state.value.bedtime?.settings?.theme ?: return
+        val playing = sound.play(theme)
+        _state.update { it.copy(soundPlaying = playing) }
+    }
+
+    private fun stopThemeSound() {
+        sound.stop()
+        _state.update { it.copy(soundPlaying = false) }
+    }
+
+    override fun onCleared() {
+        sound.stop()
+    }
 
     private fun dispatch(event: CampingEvent) {
-        when (val result = CampingSessionRules.next(_state.value.stage, event)) {
-            is CampingTransition.MoveTo -> _state.update {
-                it.copy(
-                    stage = result.stage,
-                    // 새 세션을 시작하면 지난 종료 이유는 지운다.
-                    lastEndReason = if (event is CampingEvent.Start) null else result.reason ?: it.lastEndReason,
-                    message = null,
-                    // 새 세션을 시작하면 지난 세션의 판정·설정·백업은 지운다.
-                    arrival = if (event is CampingEvent.Start) null else it.arrival,
-                    bedtime = if (event is CampingEvent.Start) null else it.bedtime,
-                    backup = if (event is CampingEvent.Start) null else it.backup,
-                    temperatureApply = if (event is CampingEvent.Start) null else it.temperatureApply,
-                )
+        val previous = _state.value.stage
+        when (val result = CampingSessionRules.next(previous, event)) {
+            is CampingTransition.MoveTo -> {
+                applyMove(event, result)
+                if (previous != CampingStage.NIGHT && result.stage == CampingStage.NIGHT) onEnterNight()
+                if (previous == CampingStage.NIGHT && result.stage != CampingStage.NIGHT) onLeaveNight()
             }
             is CampingTransition.Rejected -> {
                 // 사용자가 직접 누른 시작만 거절 이유를 보여준다.
@@ -213,7 +286,26 @@ class CampingViewModel(
         }
     }
 
+    private fun applyMove(event: CampingEvent, result: CampingTransition.MoveTo) {
+        _state.update {
+                it.copy(
+                    stage = result.stage,
+                    // 새 세션을 시작하면 지난 종료 이유는 지운다.
+                    lastEndReason = if (event is CampingEvent.Start) null else result.reason ?: it.lastEndReason,
+                    message = null,
+                    // 새 세션을 시작하면 지난 세션의 판정·설정·백업은 지운다.
+                    arrival = if (event is CampingEvent.Start) null else it.arrival,
+                    bedtime = if (event is CampingEvent.Start) null else it.bedtime,
+                    backup = if (event is CampingEvent.Start) null else it.backup,
+                    temperatureApply = if (event is CampingEvent.Start) null else it.temperatureApply,
+                    lightApply = if (event is CampingEvent.Start) null else it.lightApply,
+                    wakeDateTime = if (event is CampingEvent.Start) null else it.wakeDateTime,
+                )
+            }
+    }
+
     private companion object {
         val DEFAULT_WAKE_AT: LocalTime = LocalTime.of(7, 0)
+        const val WAKE_CHECK_INTERVAL_MS = 15_000L
     }
 }

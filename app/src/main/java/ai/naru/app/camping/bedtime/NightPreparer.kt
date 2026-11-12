@@ -27,24 +27,24 @@ data class VehicleBackup(
     val ambient: AmbientLight?,
 )
 
-/** 설정 온도 적용 결과. */
-sealed interface TemperatureApply {
+/** 차량 제어 결과 (설정 온도, 조명 등 공통). */
+sealed interface ControlResult {
     /** 적용하고 다시 조회해서 반영을 확인함 */
-    data object Applied : TemperatureApply
+    data object Applied : ControlResult
 
     /** 요청은 전달됐지만 다시 조회한 값이 다름 (예: Virtual Console 비활성) */
-    data class Unverified(val actualC: Float?) : TemperatureApply
+    data object Unverified : ControlResult
 
-    /** 차량이 온도 제어를 지원하지 않음 */
-    data object NotSupported : TemperatureApply
+    /** 차량이 이 제어를 지원하지 않음 */
+    data object NotSupported : ControlResult
 
     /** 제어 요청 실패 */
-    data class Failed(val reason: FailureReason) : TemperatureApply
+    data class Failed(val reason: FailureReason) : ControlResult
 }
 
 data class NightPreparation(
     val backup: VehicleBackup,
-    val temperature: TemperatureApply,
+    val temperature: ControlResult,
 )
 
 /**
@@ -64,13 +64,13 @@ class NightPreparer(private val vehicle: VehicleGateway) {
         )
 
         val temperature = if (capabilities.targetTemperatureRange == null) {
-            TemperatureApply.NotSupported
+            ControlResult.NotSupported
         } else {
             when (val result = vehicle.setTargetTemperature(settings.targetTempC)) {
-                is VehicleResult.Failure -> TemperatureApply.Failed(result.reason)
+                is VehicleResult.Failure -> ControlResult.Failed(result.reason)
                 is VehicleResult.Success -> {
                     val actual = vehicle.getTargetTemperature().valueOrNull()
-                    if (actual == settings.targetTempC) TemperatureApply.Applied else TemperatureApply.Unverified(actual)
+                    if (actual == settings.targetTempC) ControlResult.Applied else ControlResult.Unverified
                 }
             }
         }

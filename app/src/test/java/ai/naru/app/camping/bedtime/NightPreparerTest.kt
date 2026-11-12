@@ -29,7 +29,7 @@ class NightPreparerTest {
         val result = NightPreparer(fake).prepare(settings)
 
         assertEquals(VehicleBackup(targetTempC = 22f, ambient = originalAmbient), result.backup)
-        assertEquals(TemperatureApply.Applied, result.temperature)
+        assertEquals(ControlResult.Applied, result.temperature)
         assertEquals(VehicleResult.Success(24f), fake.getTargetTemperature())
     }
 
@@ -42,7 +42,7 @@ class NightPreparerTest {
 
         val result = NightPreparer(fake).prepare(settings)
 
-        assertEquals(TemperatureApply.NotSupported, result.temperature)
+        assertEquals(ControlResult.NotSupported, result.temperature)
         assertNull(result.backup.ambient)
         assertEquals(VehicleResult.Success(22f), fake.getTargetTemperature())
     }
@@ -54,7 +54,7 @@ class NightPreparerTest {
 
         val result = NightPreparer(fake).prepare(settings)
 
-        assertEquals(TemperatureApply.Failed(FailureReason.CONNECTION), result.temperature)
+        assertEquals(ControlResult.Failed(FailureReason.CONNECTION), result.temperature)
         assertEquals(VehicleResult.Success(22f), fake.getTargetTemperature())
     }
 }

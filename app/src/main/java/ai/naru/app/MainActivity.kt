@@ -45,7 +45,7 @@ private enum class Screen { MODE_SELECT, CAMPING }
 private fun NaruApp(app: NaruApplication) {
     var screen by rememberSaveable { mutableStateOf(Screen.MODE_SELECT) }
     val campingViewModel: CampingViewModel = viewModel(
-        factory = viewModelFactory { initializer { CampingViewModel(app.vehicleGateway, app.siteRepository) } },
+        factory = viewModelFactory { initializer { CampingViewModel(app.vehicleGateway, app.siteRepository, app.nightSound) } },
     )
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -71,6 +71,7 @@ private fun NaruApp(app: NaruApplication) {
                                 onSelectTheme = campingViewModel::selectTheme,
                                 onStartNight = campingViewModel::startNight,
                             ),
+                            onToggleSound = campingViewModel::toggleSound,
                             onFinishRestore = campingViewModel::finishRestore,
                             onDismissMessage = campingViewModel::dismissMessage,
                             onBack = { screen = Screen.MODE_SELECT },
@@ -84,7 +85,6 @@ private fun NaruApp(app: NaruApplication) {
                 VehicleDebugPanel(
                     fake = app.vehicleGateway as? FakeVehicleGateway,
                     onSimulateWakeTime = campingViewModel::simulateWakeTime,
-                    onSimulateBatteryLow = campingViewModel::simulateBatteryLow,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

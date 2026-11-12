@@ -3,6 +3,7 @@ package ai.naru.app.ui.camping
 import ai.naru.app.camping.CampingStage
 import ai.naru.app.camping.CampingUiState
 import ai.naru.app.camping.EndReason
+import ai.naru.app.camping.arrival.Site
 import ai.naru.app.ui.theme.NaruTheme
 import ai.naru.app.vehicle.Gear
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 /** 화면에서 누를 수 있는 동작 묶음. 화면은 무엇을 할지 모르고 호출만 한다. */
 data class CampingActions(
     val onStart: () -> Unit = {},
+    val onSelectSite: (Site) -> Unit = {},
     val onConfirmArrival: () -> Unit = {},
     val onStartNight: () -> Unit = {},
     val onFinishRestore: () -> Unit = {},
@@ -80,11 +82,12 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
             }
         }
 
-        CampingStage.ARRIVAL_CHECK -> {
-            // TODO(다음 이슈): 장소 유형·야간 날씨·물때·시설 정보로 3단계 안내 카드
-            Placeholder("도착 안내가 여기에 표시돼요.")
-            Button(onClick = actions.onConfirmArrival) { Text("확인했어요") }
-        }
+        CampingStage.ARRIVAL_CHECK -> ArrivalContent(
+            sites = state.sites,
+            arrival = state.arrival,
+            onSelectSite = actions.onSelectSite,
+            onConfirm = actions.onConfirmArrival,
+        )
 
         CampingStage.BEDTIME_PREP -> {
             // TODO(다음 이슈): 추천 온도, 기상 시각·일출 안내, 아침 예상 잔량, 테마 선택

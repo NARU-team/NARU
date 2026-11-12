@@ -1,5 +1,10 @@
 package ai.naru.app.camping
 
+import ai.naru.app.camping.arrival.ArrivalAssessment
+import ai.naru.app.camping.arrival.ArrivalRules
+import ai.naru.app.camping.arrival.Site
+import ai.naru.app.camping.arrival.SiteConditions
+import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.vehicle.Gear
 import ai.naru.app.vehicle.VehicleGateway
 import androidx.lifecycle.ViewModel
@@ -19,6 +24,16 @@ data class CampingUiState(
     val lastEndReason: EndReason? = null,
     /** 사용자에게 보여줄 안내 (예: P가 아니라 시작 불가) */
     val message: String? = null,
+    /** 도착 단계: 고를 수 있는 장소 */
+    val sites: List<Site> = emptyList(),
+    /** 도착 단계: 고른 장소와 그 판정 결과 */
+    val arrival: ArrivalState? = null,
+)
+
+data class ArrivalState(
+    val site: Site,
+    val conditions: SiteConditions,
+    val assessment: ArrivalAssessment,
 )
 
 /**
@@ -29,6 +44,7 @@ data class CampingUiState(
  */
 class CampingViewModel(
     private val vehicle: VehicleGateway,
+    private val siteRepository: SiteRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CampingUiState())
@@ -46,13 +62,30 @@ class CampingViewModel(
                 _state.update { it.copy(batteryPercent = percent) }
             }
         }
+        viewModelScope.launch {
+            val sites = siteRepository.sites()
+            _state.update { it.copy(sites = sites) }
+        }
     }
 
     // --- 사용자 동작 ---
 
     fun start() = dispatch(CampingEvent.Start(_state.value.gear))
 
-    fun confirmArrival() = dispatch(CampingEvent.ConfirmArrival)
+    /** 도착 단계에서 장소를 고르면 오늘 밤 정보를 불러와 규칙으로 판정한다. */
+    fun selectSite(site: Site) {
+        viewModelScope.launch {
+            val conditions = siteRepository.conditions(site)
+            val assessment = ArrivalRules.assess(site, conditions)
+            _state.update { it.copy(arrival = ArrivalState(site, conditions, assessment)) }
+        }
+    }
+
+    /** 판정 결과를 확인한 뒤에만 다음 단계로 넘어간다. */
+    fun confirmArrival() {
+        if (_state.value.arrival == null) return
+        dispatch(CampingEvent.ConfirmArrival)
+    }
 
     fun startNight() = dispatch(CampingEvent.StartNight)
 
@@ -75,6 +108,8 @@ class CampingViewModel(
                     // 새 세션을 시작하면 지난 종료 이유는 지운다.
                     lastEndReason = if (event is CampingEvent.Start) null else result.reason ?: it.lastEndReason,
                     message = null,
+                    // 새 세션을 시작하면 지난 도착 판정은 지운다.
+                    arrival = if (event is CampingEvent.Start) null else it.arrival,
                 )
             }
             is CampingTransition.Rejected -> {

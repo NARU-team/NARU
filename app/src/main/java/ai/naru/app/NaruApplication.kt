@@ -1,6 +1,7 @@
 package ai.naru.app
 
 import ai.naru.app.vehicle.FakeVehicleGateway
+import ai.naru.app.vehicle.PleosVehicleGateway
 import ai.naru.app.vehicle.VehicleGateway
 import android.app.Application
 
@@ -11,6 +12,10 @@ import android.app.Application
  */
 class NaruApplication : Application() {
 
-    /** TODO(다음 이슈): 실제 차량 게이트웨이가 생기면 에뮬레이터·실차에서는 그것을 쓴다. */
-    val vehicleGateway: VehicleGateway by lazy { FakeVehicleGateway() }
+    /**
+     * Pleos 차량 서비스가 있으면(Pleos 에뮬레이터·실차) 실제 차량, 없으면(일반 에뮬레이터·기기) Fake를 쓴다.
+     */
+    val vehicleGateway: VehicleGateway by lazy {
+        if (PleosVehicleGateway.isAvailable(this)) PleosVehicleGateway(this) else FakeVehicleGateway()
+    }
 }

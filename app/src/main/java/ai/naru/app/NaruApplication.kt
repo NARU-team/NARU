@@ -1,5 +1,7 @@
 package ai.naru.app
 
+import ai.naru.app.camping.arrival.DemoSiteRepository
+import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.vehicle.FakeVehicleGateway
 import ai.naru.app.vehicle.PleosVehicleGateway
 import ai.naru.app.vehicle.VehicleGateway
@@ -18,4 +20,7 @@ class NaruApplication : Application() {
     val vehicleGateway: VehicleGateway by lazy {
         if (PleosVehicleGateway.isAvailable(this)) PleosVehicleGateway(this) else FakeVehicleGateway()
     }
+
+    /** TODO(다음 이슈): 중계 서버가 생기면 서버 구현으로 바꾼다. 지금은 시연 지역 샘플 데이터. */
+    val siteRepository: SiteRepository by lazy { DemoSiteRepository() }
 }

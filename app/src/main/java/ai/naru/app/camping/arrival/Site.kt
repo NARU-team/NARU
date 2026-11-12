@@ -1,0 +1,40 @@
+package ai.naru.app.camping.arrival
+
+import java.time.LocalTime
+
+/** 장소 유형. 밤 테마(해변·숲·호수)와도 연결된다. */
+enum class PlaceType { BEACH, FOREST, LAKE }
+
+/** 차박 허용 여부. 데이터가 없으면 허용으로 간주하지 않고 [UNKNOWN]으로 둔다. */
+enum class CampingPermission { ALLOWED, UNKNOWN, PROHIBITED }
+
+/** 장소의 고정 정보 (관광공사 시설 정보에 해당). */
+data class Site(
+    val id: String,
+    val name: String,
+    val placeType: PlaceType,
+    val permission: CampingPermission,
+    val facilities: List<String>,
+)
+
+enum class Precipitation { NONE, RAIN, HEAVY_RAIN }
+
+/**
+ * 야간 날씨 (기상청 단기예보에 해당).
+ * @property minTempC 야간 최저기온(°C)
+ */
+data class NightWeather(
+    val minTempC: Float,
+    val precipitation: Precipitation,
+    val strongWind: Boolean,
+)
+
+/**
+ * 오늘 밤 장소의 변하는 정보. 불러오지 못한 값은 null이다.
+ * @property weather null이면 날씨를 불러오지 못함
+ * @property highTides 오늘 밤~내일 아침 만조 시각. null이면 물때를 불러오지 못함 (해변이 아니면 확인하지 않는다)
+ */
+data class SiteConditions(
+    val weather: NightWeather?,
+    val highTides: List<LocalTime>?,
+)

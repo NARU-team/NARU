@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose가 화면을 그리기 전, 앱 창에 적용되는 기본 테마 -->
+    <style name="Theme.Naru" parent="android:Theme.Material.NoActionBar" />
+</resources>

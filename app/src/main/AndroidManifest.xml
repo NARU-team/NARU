@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 차량용(AAOS) 앱임을 알린다. 개발 중에는 일반 에뮬레이터에서도 설치되도록 required=false -->
+    <uses-feature
+        android:name="android.hardware.type.automotive"
+        android:required="false" />
+
+    <!-- 중계 서버 호출 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Vehicle SDK: 공조(조회/제어) -->
+    <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_CLIMATE" />
+    <!-- Vehicle SDK: 배터리 잔량 조회 -->
+    <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
+    <!-- Vehicle SDK: 조명(조회/제어) -->
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_LIGHTS" />
+    <!-- FusedLocation SDK: 차량 위치 -->
+    <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
+    <!-- TextToSpeech SDK: 멘트 음성 출력 -->
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- AAOS: 기어(GEAR_SELECTION) 조회. TODO(확인 필요): 에뮬레이터에서 실제 필요한 권한 확인 -->
+    <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Naru">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

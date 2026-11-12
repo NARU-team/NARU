@@ -18,12 +18,13 @@ import androidx.compose.ui.unit.dp
 /**
  * 개발용 차량 조작 패널. 디버그 빌드에서만 보인다.
  *
- * Fake 차량의 기어·배터리를 바꾸고, 아직 구현 전인 알람·배터리 감시 대신 사건을 손으로 발생시킨다.
+ * 아직 구현 전인 알람·배터리 감시 대신 사건을 손으로 발생시킨다.
+ * Fake 차량일 때는 기어·배터리도 바꾼다. 실제 차량일 때는 Virtual Console에서 바꾼다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VehicleDebugPanel(
-    fake: FakeVehicleGateway,
+    fake: FakeVehicleGateway?,
     onSimulateWakeTime: () -> Unit,
     onSimulateBatteryLow: () -> Unit,
     modifier: Modifier = Modifier,
@@ -34,16 +35,19 @@ fun VehicleDebugPanel(
         tonalElevation = 2.dp,
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = "개발용 차량 조작 (Fake)", style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (gear in listOf(Gear.PARK, Gear.REVERSE, Gear.NEUTRAL, Gear.DRIVE)) {
-                    OutlinedButton(onClick = { fake.setGear(gear) }) { Text("기어 ${gear.name.first()}") }
+            val source = if (fake != null) "Fake 차량" else "실제 차량 · 기어·배터리는 Virtual Console에서"
+            Text(text = "개발용 조작 ($source)", style = MaterialTheme.typography.titleMedium)
+            if (fake != null) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (gear in listOf(Gear.PARK, Gear.REVERSE, Gear.NEUTRAL, Gear.DRIVE)) {
+                        OutlinedButton(onClick = { fake.setGear(gear) }) { Text("기어 ${gear.name.first()}") }
+                    }
+                    for (percent in listOf(80, 30, 10)) {
+                        OutlinedButton(onClick = { fake.setBatteryPercent(percent) }) { Text("배터리 $percent%") }
+                    }
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (percent in listOf(80, 30, 10)) {
-                    OutlinedButton(onClick = { fake.setBatteryPercent(percent) }) { Text("배터리 $percent%") }
-                }
                 OutlinedButton(onClick = onSimulateWakeTime) { Text("기상 시각 도달") }
                 OutlinedButton(onClick = onSimulateBatteryLow) { Text("배터리 하한 도달") }
             }

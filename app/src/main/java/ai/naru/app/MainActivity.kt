@@ -72,10 +72,9 @@ private fun NaruApp(app: NaruApplication) {
                 }
             }
 
-            val fake = app.vehicleGateway as? FakeVehicleGateway
-            if (BuildConfig.DEBUG && fake != null) {
+            if (BuildConfig.DEBUG) {
                 VehicleDebugPanel(
-                    fake = fake,
+                    fake = app.vehicleGateway as? FakeVehicleGateway,
                     onSimulateWakeTime = campingViewModel::simulateWakeTime,
                     onSimulateBatteryLow = campingViewModel::simulateBatteryLow,
                     modifier = Modifier.fillMaxWidth(),

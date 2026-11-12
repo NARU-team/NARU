@@ -24,6 +24,11 @@
     <!-- AAOS: 기어(GEAR_SELECTION) 조회. 에뮬레이터에서 이 권한으로 조회 확인(2026-11-13) -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
 
+    <!-- Android 11+ 패키지 가시성: Pleos 차량 서비스 설치 여부를 확인하려면 미리 선언해야 한다 -->
+    <queries>
+        <package android:name="ai.pleos.playground.service.vehicle" />
+    </queries>
+
     <application
         android:name=".NaruApplication"
         android:allowBackup="false"

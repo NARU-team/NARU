@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 
 /** 도착 단계: 장소를 고르고 3단계 안내 카드를 본다. */
 @Composable
@@ -103,8 +102,6 @@ private fun ArrivalGrade.containerColor() = when (this) {
     ArrivalGrade.CHECK -> Color(0xFF7A5A12)
     ArrivalGrade.MOVE -> Color(0xFF8C2F2F)
 }
-
-private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun ArrivalReason.label() = when (this) {
     ArrivalReason.Prohibited -> "차박이 금지된 장소로 확인돼요"

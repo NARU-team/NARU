@@ -4,11 +4,9 @@ import ai.naru.app.camping.BedtimeState
 import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.bedtime.BedtimeSettings
 import ai.naru.app.camping.bedtime.RecommendationNote
-import ai.naru.app.camping.bedtime.TemperatureApply
 import ai.naru.app.camping.bedtime.TemperatureRecommendation
 import ai.naru.app.camping.bedtime.WakeBasis
 import ai.naru.app.ui.theme.NaruTheme
-import ai.naru.app.vehicle.FailureReason
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,20 +99,6 @@ fun BedtimeContent(bedtime: BedtimeState?, actions: BedtimeActions) {
     }
 }
 
-/** 밤 단계 상단에 보여줄 오늘 밤 설정 요약과 온도 적용 결과. */
-@Composable
-fun NightSummary(settings: BedtimeSettings?, temperatureApply: TemperatureApply?) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        settings?.let {
-            Text(
-                text = "${it.theme.themeLabel()} 테마 · 기상 ${it.wakeAt.format(timeFormat)}${if (it.wakeBasis == WakeBasis.SUNRISE) " (일출)" else ""}",
-                style = MaterialTheme.typography.titleLarge,
-            )
-        }
-        temperatureApply?.let { Text(text = it.notice(settings?.targetTempC), style = MaterialTheme.typography.bodyLarge) }
-    }
-}
-
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -137,7 +121,7 @@ private fun Stepper(value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
     }
 }
 
-private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
+internal val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun recommendationText(recommendation: TemperatureRecommendation): String {
     val base = "추천 ${recommendation.celsius.formatTemp()}°C"
@@ -151,24 +135,13 @@ private fun recommendationText(recommendation: TemperatureRecommendation): Strin
     return if (reasons.isEmpty()) "$base · 야간 최저기온 기준" else "$base · ${reasons.joinToString(" · ")}"
 }
 
-/** 온도 적용 결과 안내. 실패하면 자동으로 다시 시도하지 않고 직접 조작을 안내한다. */
-private fun TemperatureApply.notice(targetC: Float?): String = when (this) {
-    TemperatureApply.Applied -> "설정 온도를 ${targetC?.formatTemp() ?: "-"}°C로 맞췄어요."
-    is TemperatureApply.Unverified -> "설정 온도 변경을 요청했지만 반영을 확인하지 못했어요. 차량 화면에서 확인해 주세요."
-    TemperatureApply.NotSupported -> "이 차량은 설정 온도 제어를 지원하지 않아요. 필요하면 직접 조절해 주세요."
-    is TemperatureApply.Failed -> when (reason) {
-        FailureReason.PERMISSION -> "설정 온도를 바꿀 권한이 없어요. 차량에서 직접 조절해 주세요."
-        else -> "설정 온도를 바꾸지 못했어요. 차량에서 직접 조절해 주세요."
-    }
-}
-
-private fun PlaceType.themeLabel() = when (this) {
+internal fun PlaceType.themeLabel() = when (this) {
     PlaceType.BEACH -> "해변"
     PlaceType.FOREST -> "숲"
     PlaceType.LAKE -> "호수"
 }
 
-private fun Float.formatTemp(): String = if (this % 1f == 0f) toInt().toString() else "%.1f".format(this)
+internal fun Float.formatTemp(): String = if (this % 1f == 0f) toInt().toString() else "%.1f".format(this)
 
 @Preview(widthDp = 1280, heightDp = 800)
 @Composable

@@ -29,6 +29,7 @@ data class CampingActions(
     val onSelectSite: (Site) -> Unit = {},
     val onConfirmArrival: () -> Unit = {},
     val bedtime: BedtimeActions = BedtimeActions(),
+    val onToggleSound: () -> Unit = {},
     val onFinishRestore: () -> Unit = {},
     val onDismissMessage: () -> Unit = {},
     val onBack: () -> Unit = {},
@@ -91,11 +92,7 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
 
         CampingStage.BEDTIME_PREP -> BedtimeContent(bedtime = state.bedtime, actions = actions.bedtime)
 
-        CampingStage.NIGHT -> {
-            NightSummary(settings = state.bedtime?.settings, temperatureApply = state.temperatureApply)
-            // TODO(다음 이슈): 장소 테마(조명·음향) 적용, 배터리 하한 감시
-            Placeholder("기상 시각이나 배터리 하한에서 아침으로 넘어가요.")
-        }
+        CampingStage.NIGHT -> NightContent(state = state, onToggleSound = actions.onToggleSound)
 
         CampingStage.MORNING -> {
             state.lastEndReason?.let {

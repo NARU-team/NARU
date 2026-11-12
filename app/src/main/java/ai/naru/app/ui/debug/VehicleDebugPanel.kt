@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 /**
  * 개발용 차량 조작 패널. 디버그 빌드에서만 보인다.
  *
- * 아직 구현 전인 알람·배터리 감시 대신 사건을 손으로 발생시킨다.
+ * 기상 시각을 기다리지 않고 아침으로 넘기는 버튼을 둔다. 배터리 하한은 실제 배터리 감시로 동작한다.
  * Fake 차량일 때는 기어·배터리도 바꾼다. 실제 차량일 때는 Virtual Console에서 바꾼다.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 fun VehicleDebugPanel(
     fake: FakeVehicleGateway?,
     onSimulateWakeTime: () -> Unit,
-    onSimulateBatteryLow: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -49,7 +48,6 @@ fun VehicleDebugPanel(
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onSimulateWakeTime) { Text("기상 시각 도달") }
-                OutlinedButton(onClick = onSimulateBatteryLow) { Text("배터리 하한 도달") }
             }
         }
     }

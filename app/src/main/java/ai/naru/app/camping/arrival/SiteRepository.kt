@@ -49,16 +49,19 @@ class DemoSiteRepository : SiteRepository {
         "demo-forest" to SiteConditions(
             weather = NightWeather(minTempC = 6f, precipitation = Precipitation.NONE, strongWind = false),
             highTides = null,
+            sunrise = LocalTime.of(7, 21),
         ),
         // 현장 확인 필요: 허용 여부 불명확, 영하
         "demo-lake" to SiteConditions(
             weather = NightWeather(minTempC = -2f, precipitation = Precipitation.NONE, strongWind = false),
             highTides = null,
+            sunrise = LocalTime.of(7, 18),
         ),
         // 주의·이동 권장: 밤사이 만조
         "demo-beach" to SiteConditions(
             weather = NightWeather(minTempC = 9f, precipitation = Precipitation.NONE, strongWind = false),
             highTides = listOf(LocalTime.of(2, 40), LocalTime.of(14, 55)),
+            sunrise = LocalTime.of(7, 15),
         ),
     )
 

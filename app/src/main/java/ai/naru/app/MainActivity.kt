@@ -1,6 +1,7 @@
 package ai.naru.app
 
 import ai.naru.app.camping.CampingViewModel
+import ai.naru.app.ui.camping.BedtimeActions
 import ai.naru.app.ui.camping.CampingActions
 import ai.naru.app.ui.camping.CampingScreen
 import ai.naru.app.ui.debug.VehicleDebugPanel
@@ -63,7 +64,13 @@ private fun NaruApp(app: NaruApplication) {
                             onStart = campingViewModel::start,
                             onSelectSite = campingViewModel::selectSite,
                             onConfirmArrival = campingViewModel::confirmArrival,
-                            onStartNight = campingViewModel::startNight,
+                            bedtime = BedtimeActions(
+                                onAdjustTemperature = campingViewModel::adjustTemperature,
+                                onAdjustWakeTime = campingViewModel::adjustWakeTime,
+                                onWakeAtSunrise = campingViewModel::wakeAtSunrise,
+                                onSelectTheme = campingViewModel::selectTheme,
+                                onStartNight = campingViewModel::startNight,
+                            ),
                             onFinishRestore = campingViewModel::finishRestore,
                             onDismissMessage = campingViewModel::dismissMessage,
                             onBack = { screen = Screen.MODE_SELECT },

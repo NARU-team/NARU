@@ -1,55 +1,86 @@
 package ai.naru.app
 
+import ai.naru.app.camping.CampingViewModel
+import ai.naru.app.ui.camping.CampingActions
+import ai.naru.app.ui.camping.CampingScreen
+import ai.naru.app.ui.debug.VehicleDebugPanel
+import ai.naru.app.ui.home.ModeSelectScreen
+import ai.naru.app.ui.theme.NaruTheme
+import ai.naru.app.vehicle.FakeVehicleGateway
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import ai.naru.app.ui.theme.NaruTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val app = application as NaruApplication
         setContent {
             NaruTheme {
-                HomeScreen()
+                NaruApp(app)
             }
         }
     }
 }
 
-/** 모드 선택 화면이 들어올 자리. 지금은 빌드와 실행 확인용 화면이다. */
-@Composable
-fun HomeScreen() {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.padding(32.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(text = "나루", style = MaterialTheme.typography.displayMedium)
-            Text(
-                text = "차에서 머무는 모든 순간을 나만의 쉼으로.",
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
-    }
-}
+/** 지금 보이는 화면. 화면이 2개뿐이라 내비게이션 라이브러리 없이 상태로 바꾼다. */
+private enum class Screen { MODE_SELECT, CAMPING }
 
-@Preview(showBackground = true)
 @Composable
-private fun HomeScreenPreview() {
-    NaruTheme {
-        HomeScreen()
+private fun NaruApp(app: NaruApplication) {
+    var screen by rememberSaveable { mutableStateOf(Screen.MODE_SELECT) }
+    val campingViewModel: CampingViewModel = viewModel(
+        factory = viewModelFactory { initializer { CampingViewModel(app.vehicleGateway) } },
+    )
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column {
+            when (screen) {
+                Screen.MODE_SELECT -> ModeSelectScreen(
+                    onCampingSelected = { screen = Screen.CAMPING },
+                    modifier = Modifier.weight(1f),
+                )
+
+                Screen.CAMPING -> {
+                    val state by campingViewModel.state.collectAsStateWithLifecycle()
+                    CampingScreen(
+                        state = state,
+                        actions = CampingActions(
+                            onStart = campingViewModel::start,
+                            onConfirmArrival = campingViewModel::confirmArrival,
+                            onStartNight = campingViewModel::startNight,
+                            onFinishRestore = campingViewModel::finishRestore,
+                            onDismissMessage = campingViewModel::dismissMessage,
+                            onBack = { screen = Screen.MODE_SELECT },
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            val fake = app.vehicleGateway as? FakeVehicleGateway
+            if (BuildConfig.DEBUG && fake != null) {
+                VehicleDebugPanel(
+                    fake = fake,
+                    onSimulateWakeTime = campingViewModel::simulateWakeTime,
+                    onSimulateBatteryLow = campingViewModel::simulateBatteryLow,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }

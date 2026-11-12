@@ -30,6 +30,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // BuildConfig.DEBUG로 개발용 차량 조작 패널을 디버그 빌드에서만 보여준다.
+        buildConfig = true
     }
 }
 
@@ -37,6 +39,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
 
     // Compose BOM: Compose 라이브러리들의 버전을 한 묶음으로 맞춘다.

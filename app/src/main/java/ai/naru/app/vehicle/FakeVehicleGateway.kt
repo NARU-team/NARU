@@ -14,6 +14,8 @@ class FakeVehicleGateway(
     initialBatteryPercent: Int? = 80,
     private var targetTemperature: Float = 22.0f,
     private var cabinTemperature: Float = 19.0f,
+    /** null이면 바깥 온도를 주지 않는 차량 */
+    private val outsideTemperature: Float? = 9.0f,
     private var ambientLight: AmbientLight = AmbientLight(on = false, brightness = 100, colorRgb = 0xFFFFFF),
     private val capabilities: VehicleCapabilities = VehicleCapabilities(
         targetTemperatureRange = 15.0f..30.0f,
@@ -46,6 +48,9 @@ class FakeVehicleGateway(
 
     override suspend fun getCabinTemperature(): VehicleResult<Float> =
         VehicleResult.Success(cabinTemperature)
+
+    override suspend fun getOutsideTemperature(): VehicleResult<Float> =
+        outsideTemperature?.let { VehicleResult.Success(it) } ?: VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
 
     override suspend fun setTargetTemperature(celsius: Float): VehicleResult<Unit> {
         consumeFailure()?.let { return it }

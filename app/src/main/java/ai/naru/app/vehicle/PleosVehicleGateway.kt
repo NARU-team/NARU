@@ -130,6 +130,23 @@ class PleosVehicleGateway(context: Context) : VehicleGateway {
         hvac.getHvacTemperature(DRIVER_AREA, TemperatureUnit.CELSIUS, ok, fail)
     }.requireValue()
 
+    /**
+     * 바깥 온도: Pleos Vehicle SDK에 없어 AAOS 표준 속성 ENV_OUTSIDE_TEMPERATURE(°C, 전역 영역)를 쓴다 (이슈 #33).
+     * 권한 android.car.permission.CAR_EXTERIOR_ENVIRONMENT. 지원하지 않거나 권한이 없으면 실패 → 홈 칩을 숨긴다.
+     */
+    override suspend fun getOutsideTemperature(): VehicleResult<Float> {
+        val manager = propertyManager ?: return VehicleResult.Failure(FailureReason.CONNECTION)
+        return runCatching { manager.getProperty<Float>(VehiclePropertyIds.ENV_OUTSIDE_TEMPERATURE, 0).value }
+            .fold(
+                onSuccess = { value -> value?.let { VehicleResult.Success(it) } ?: VehicleResult.Failure(FailureReason.UNKNOWN, "값 없음") },
+                onFailure = { e ->
+                    Log.w(TAG, "바깥 온도 조회 실패", e)
+                    val reason = if (e is SecurityException) FailureReason.PERMISSION else FailureReason.NOT_SUPPORTED
+                    VehicleResult.Failure(reason, e.message)
+                },
+            )
+    }
+
     override suspend fun getCabinTemperature(): VehicleResult<Float> = awaitCallback<Float?> { ok, fail ->
         hvac.getHvacTemperatureCurrent(DRIVER_AREA, TemperatureUnit.CELSIUS, ok, fail)
     }.requireValue()

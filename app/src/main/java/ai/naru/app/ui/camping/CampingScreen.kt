@@ -158,6 +158,7 @@ private fun EndReason.label() = when (this) {
     EndReason.BATTERY_LOW -> "배터리 하한 도달"
     EndReason.GEAR_LEFT_PARK -> "기어가 P를 벗어나 종료됨"
     EndReason.COMPLETED -> "정상 종료"
+    EndReason.CANCELED -> "준비 중 그만둠"
 }
 
 @Preview(widthDp = 1280, heightDp = 720)

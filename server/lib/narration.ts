@@ -62,7 +62,8 @@ export function validateOutput(text: string, facts: Facts, moment: Moment = "ARR
   const t = text.replace(/\s+/g, " ").trim();
   if (!t || t.length > NARRATION_LIMITS.maxChars) return null;
   if (/[*#`_\[\]()]|\p{Extended_Pictographic}/u.test(t)) return null;
-  const sentences = t.split(/(?<=[.!?。])\s*/).filter((s) => s.trim());
+  // 문장 끝 = 마침표·물음표·느낌표 뒤에 공백이 오거나 글이 끝남 ("19.1°C" 같은 소수점은 문장 끝이 아님)
+  const sentences = t.split(/(?<=[.!?。])\s+/).filter((s) => s.trim());
   if (sentences.length > NARRATION_LIMITS.maxSentences[moment]) return null;
 
   const allowed = new Set(numbersIn(JSON.stringify(facts)));

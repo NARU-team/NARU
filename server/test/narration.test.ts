@@ -22,6 +22,10 @@ test("아침 브리핑은 4문장까지 허용한다", () => {
   assert.equal(validateOutput(text, morning, "BEDTIME"), null);
 });
 
+test("소수점은 문장 끝으로 세지 않는다", () => {
+  assert.equal(validateOutput("차 안은 19.1°C예요. 바깥은 13.5°C예요. 편히 쉬세요.", { a: "19.1 13.5" }, "BEDTIME"), "차 안은 19.1°C예요. 바깥은 13.5°C예요. 편히 쉬세요.");
+});
+
 test("문장이 너무 많거나 길면 실패", () => {
   assert.equal(validateOutput("하나. 둘. 셋. 넷.", facts), null);
   assert.equal(validateOutput("가".repeat(161), facts), null);

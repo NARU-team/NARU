@@ -184,7 +184,11 @@ private fun SitePicker(sites: List<Site>, unavailable: Boolean, loading: Site?, 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(text = "어디에 도착했나요?", style = MaterialTheme.typography.headlineMedium, color = colors.text)
-            Text(text = "차량 위치 연동 전이라 시연 지역에서 골라 주세요.", style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary)
+            Text(
+                text = "현재 위치로 장소를 찾지 못했어요. 시연 지역에서 고르거나 [현재 위치로 찾기]를 눌러 주세요.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textTertiary,
+            )
         }
         if (unavailable && sites.isEmpty()) {
             Text(text = "장소 정보를 불러오지 못했어요. 네트워크 연결을 확인해 주세요.", style = MaterialTheme.typography.bodyLarge, color = colors.text)

@@ -28,7 +28,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import java.time.LocalTime
@@ -73,31 +72,33 @@ private fun ArrivalCard(arrival: ArrivalState) {
     val grade = arrival.assessment.grade
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = grade.containerColor()),
+        colors = CardDefaults.cardColors(containerColor = grade.containerColor(), contentColor = NaruTheme.colors.text),
     ) {
         Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(text = grade.title(), style = MaterialTheme.typography.headlineLarge, color = Color.White)
-            Text(text = grade.guide(), style = MaterialTheme.typography.titleMedium, color = Color.White)
+            Text(text = grade.title(), style = MaterialTheme.typography.headlineLarge, color = NaruTheme.colors.text)
+            Text(text = grade.guide(), style = MaterialTheme.typography.titleMedium, color = NaruTheme.colors.text)
 
             if (arrival.assessment.reasons.isNotEmpty()) {
-                Text(text = "판단 근거", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                Text(text = "판단 근거", style = MaterialTheme.typography.titleMedium, color = NaruTheme.colors.text)
                 for (reason in arrival.assessment.reasons) {
-                    Text(text = "· ${reason.label()}", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    Text(text = "· ${reason.label()}", style = MaterialTheme.typography.bodyLarge, color = NaruTheme.colors.text)
                 }
             }
 
-            Text(text = "확인된 정보", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            Text(text = "확인된 정보", style = MaterialTheme.typography.titleMedium, color = NaruTheme.colors.text)
             for (line in summaryLines(arrival.site, arrival.conditions)) {
-                Text(text = "· $line", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                Text(text = "· $line", style = MaterialTheme.typography.bodyLarge, color = NaruTheme.colors.text)
             }
         }
     }
 }
 
+/** 등급별 카드 바탕 (디자인 토큰, 이슈 #29). 화면 레이아웃은 도착 안내 화면 이슈에서 피그마대로 바꾼다. */
+@Composable
 private fun ArrivalGrade.containerColor() = when (this) {
-    ArrivalGrade.INFO -> Color(0xFF2E5E4E)
-    ArrivalGrade.CHECK -> Color(0xFF7A5A12)
-    ArrivalGrade.MOVE -> Color(0xFF8C2F2F)
+    ArrivalGrade.INFO -> NaruTheme.colors.accentContainer
+    ArrivalGrade.CHECK -> NaruTheme.colors.secondaryButton
+    ArrivalGrade.MOVE -> NaruTheme.colors.warningCard
 }
 
 private fun summaryLines(site: Site, conditions: SiteConditions): List<String> = buildList {

@@ -41,6 +41,12 @@ sealed interface CampingEvent {
     data class GearChanged(val gear: Gear) : CampingEvent
 
     /**
+     * 밤이 시작되기 전(도착·취침 준비)에 사용자가 뒤로가기·닫기로 그만뒀다.
+     * 차량에 적용한 것이 없어 확인 없이 홈으로 간다 (피그마 메모 "중간에 나가기", 이슈 #33).
+     */
+    data object Cancel : CampingEvent
+
+    /**
      * 아침 단계에서 차량 설정 복구가 끝났다.
      * @property endReason 세션을 끝내는 이유. 사용자가 마치면 COMPLETED, 기어 이탈로 복구했으면 GEAR_LEFT_PARK.
      */
@@ -75,6 +81,9 @@ enum class EndReason {
 
     /** 정상 종료 (설정 복구 완료) */
     COMPLETED,
+
+    /** 밤 전에 사용자가 그만둠 */
+    CANCELED,
 }
 
 /**
@@ -113,11 +122,13 @@ object CampingSessionRules {
 
             CampingStage.ARRIVAL_CHECK -> when (event) {
                 CampingEvent.ConfirmArrival -> CampingTransition.MoveTo(CampingStage.BEDTIME_PREP)
+                CampingEvent.Cancel -> CampingTransition.MoveTo(CampingStage.IDLE, EndReason.CANCELED)
                 else -> reject(stage, event)
             }
 
             CampingStage.BEDTIME_PREP -> when (event) {
                 CampingEvent.StartNight -> CampingTransition.MoveTo(CampingStage.NIGHT)
+                CampingEvent.Cancel -> CampingTransition.MoveTo(CampingStage.IDLE, EndReason.CANCELED)
                 else -> reject(stage, event)
             }
 

@@ -7,7 +7,9 @@ import ai.naru.app.ui.camping.CampingScreen
 import ai.naru.app.ui.camping.AssistantActions
 import ai.naru.app.ui.camping.MorningActions
 import ai.naru.app.ui.debug.VehicleDebugPanel
-import ai.naru.app.ui.home.ModeSelectScreen
+import ai.naru.app.camping.CampingStage
+import ai.naru.app.ui.home.HomeScreen
+import ai.naru.app.ui.home.HomeState
 import ai.naru.app.ui.theme.NaruTheme
 import ai.naru.app.vehicle.FakeVehicleGateway
 import android.os.Bundle
@@ -40,12 +42,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** 지금 보이는 화면. 화면이 2개뿐이라 내비게이션 라이브러리 없이 상태로 바꾼다. */
-private enum class Screen { MODE_SELECT, CAMPING }
-
 @Composable
 private fun NaruApp(app: NaruApplication) {
-    var screen by rememberSaveable { mutableStateOf(Screen.MODE_SELECT) }
     val campingViewModel: CampingViewModel = viewModel(
         factory = viewModelFactory { initializer { CampingViewModel(
                 app.vehicleGateway,
@@ -62,14 +60,26 @@ private fun NaruApp(app: NaruApplication) {
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column {
-            when (screen) {
-                Screen.MODE_SELECT -> ModeSelectScreen(
-                    onCampingSelected = { screen = Screen.CAMPING },
+            // 세션이 없으면(대기) 홈, 있으면 차박 화면 (홈의 [시작]이 바로 차박을 시작한다, 이슈 #33)
+            val state by campingViewModel.state.collectAsStateWithLifecycle()
+            when (state.stage) {
+                CampingStage.IDLE -> HomeScreen(
+                    state = HomeState(
+                        batteryPercent = state.batteryPercent,
+                        cabinTempC = state.cabinTempC,
+                        outsideTempC = state.outsideTempC,
+                        lastRecord = state.records.maxByOrNull { it.nightStartedAt },
+                        message = state.message,
+                        lastEndReason = state.lastEndReason,
+                        restore = state.restore,
+                    ),
+                    onStartCamping = campingViewModel::start,
+                    onDismissMessage = campingViewModel::dismissMessage,
+                    onShown = campingViewModel::refreshHomeStatus,
                     modifier = Modifier.weight(1f),
                 )
 
-                Screen.CAMPING -> {
-                    val state by campingViewModel.state.collectAsStateWithLifecycle()
+                else -> {
                     CampingScreen(
                         state = state,
                         actions = CampingActions(
@@ -98,7 +108,7 @@ private fun NaruApp(app: NaruApplication) {
                                 onFinish = campingViewModel::finishSession,
                             ),
                             onDismissMessage = campingViewModel::dismissMessage,
-                            onBack = { screen = Screen.MODE_SELECT },
+                            onBack = campingViewModel::cancel,
                         ),
                         modifier = Modifier.weight(1f),
                     )

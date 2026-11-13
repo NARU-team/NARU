@@ -126,6 +126,16 @@ class CampingSessionRulesTest {
     }
 
     @Test
+    fun `밤 전에는 그만둘 수 있고, 밤부터는 그만두기로 끝내지 않는다`() {
+        for (stage in listOf(CampingStage.ARRIVAL_CHECK, CampingStage.BEDTIME_PREP)) {
+            assertEquals(CampingTransition.MoveTo(CampingStage.IDLE, EndReason.CANCELED), next(stage, CampingEvent.Cancel))
+        }
+        for (stage in listOf(CampingStage.IDLE, CampingStage.NIGHT, CampingStage.MORNING)) {
+            assertTrue(next(stage, CampingEvent.Cancel) is CampingTransition.Rejected)
+        }
+    }
+
+    @Test
     fun `밤과 아침에 기어가 P를 벗어나면 바로 끝내지 않고 복구를 먼저 한다`() {
         for (stage in listOf(CampingStage.NIGHT, CampingStage.MORNING)) {
             for (gear in listOf(Gear.DRIVE, Gear.REVERSE, Gear.NEUTRAL, Gear.UNKNOWN)) {

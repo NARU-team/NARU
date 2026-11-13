@@ -65,6 +65,9 @@ data class CampingUiState(
     val stage: CampingStage = CampingStage.IDLE,
     val gear: Gear = Gear.UNKNOWN,
     val batteryPercent: Int? = null,
+    /** 홈 화면 칩: 실내·바깥 온도. 모르면 null (칩 숨김) */
+    val cabinTempC: Float? = null,
+    val outsideTempC: Float? = null,
     /** 마지막으로 아침으로 넘어가거나 세션이 끝난 이유 */
     val lastEndReason: EndReason? = null,
     /** 사용자에게 보여줄 안내 (예: P가 아니라 시작 불가) */
@@ -233,9 +236,19 @@ class CampingViewModel(
             }
         }
         loadSites()
+        refreshHomeStatus()
         viewModelScope.launch {
             val records = recordStore.load()
             _state.update { it.copy(records = records) }
+        }
+    }
+
+    /** 홈 화면 칩용 실내·바깥 온도를 다시 읽는다 (앱 시작, 세션 종료 후 홈으로 돌아올 때). */
+    fun refreshHomeStatus() {
+        viewModelScope.launch {
+            val cabin = (vehicle.getCabinTemperature() as? VehicleResult.Success)?.value
+            val outside = (vehicle.getOutsideTemperature() as? VehicleResult.Success)?.value
+            _state.update { it.copy(cabinTempC = cabin, outsideTempC = outside) }
         }
     }
 
@@ -255,6 +268,9 @@ class CampingViewModel(
     // --- 사용자 동작 ---
 
     fun start() = dispatch(CampingEvent.Start(_state.value.gear))
+
+    /** 밤 전(도착·취침 준비)에 그만두고 홈으로. 밤부터는 처리하지 않는다 (차박 종료는 복구가 필요). */
+    fun cancel() = dispatch(CampingEvent.Cancel)
 
     /** 도착 단계에서 장소를 고르면 오늘 밤 정보를 불러와 규칙으로 판정한다. */
     fun selectSite(site: Site) {
@@ -755,7 +771,10 @@ class CampingViewModel(
                 if (previous == CampingStage.NIGHT && result.stage != CampingStage.NIGHT) onLeaveNight()
                 if (previous != CampingStage.MORNING && result.stage == CampingStage.MORNING) onEnterMorning()
                 if (previous == CampingStage.MORNING && result.stage != CampingStage.MORNING) onLeaveMorning()
-                if (result.stage == CampingStage.IDLE) stopNarration()
+                if (result.stage == CampingStage.IDLE) {
+                    stopNarration()
+                    refreshHomeStatus()
+                }
                 if (result.stage != previous) resetAssistant()
                 if (result.stage == CampingStage.IDLE && previous in setOf(CampingStage.NIGHT, CampingStage.MORNING)) {
                     saveRecord(result.reason ?: EndReason.COMPLETED)

@@ -201,6 +201,37 @@ class CampingViewModelTest {
     }
 
     @Test
+    fun `도착이나 취침 준비에서 그만두면 차량을 건드리지 않고 홈(대기)으로 간다`() {
+        val vm = viewModel()
+        vm.start()
+        vm.cancel()
+        assertEquals(CampingStage.IDLE, vm.state.value.stage)
+        assertEquals(EndReason.CANCELED, vm.state.value.lastEndReason)
+
+        vm.goToBedtime()
+        vm.cancel()
+        assertEquals(CampingStage.IDLE, vm.state.value.stage)
+        assertEquals(VehicleResult.Success(22f), runBlocking { fake.getTargetTemperature() })
+        assertEquals(emptyList<Any>(), vm.state.value.records)
+    }
+
+    @Test
+    fun `밤부터는 그만두기로 끝나지 않는다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        vm.cancel()
+        assertEquals(CampingStage.NIGHT, vm.state.value.stage)
+    }
+
+    @Test
+    fun `홈 칩용 실내·바깥 온도를 읽는다`() {
+        val vm = viewModel()
+        assertEquals(19f, vm.state.value.cabinTempC)
+        assertEquals(9f, vm.state.value.outsideTempC)
+    }
+
+    @Test
     fun `밤을 지나 세션이 끝나면 기록을 남긴다`() {
         val vm = viewModel()
         vm.goToBedtime()

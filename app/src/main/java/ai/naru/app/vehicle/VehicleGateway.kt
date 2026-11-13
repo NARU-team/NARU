@@ -25,6 +25,9 @@ interface VehicleGateway {
     /** 실내 현재 온도(°C). */
     suspend fun getCabinTemperature(): VehicleResult<Float>
 
+    /** 바깥 온도(°C). 차량이 주지 않으면 실패. 홈 화면 칩에 쓴다. */
+    suspend fun getOutsideTemperature(): VehicleResult<Float>
+
     /** 공조 설정 온도를 바꾼다. 성공은 "요청이 전달됨"이지 실제 반영이 아니므로 다시 조회해서 확인한다. */
     suspend fun setTargetTemperature(celsius: Float): VehicleResult<Unit>
 

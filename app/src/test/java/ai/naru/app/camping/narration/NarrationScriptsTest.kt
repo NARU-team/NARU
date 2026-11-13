@@ -15,6 +15,8 @@ import ai.naru.app.camping.morning.MorningBriefing
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import ai.naru.app.camping.record.MorningForecast
 import org.junit.Test
 import java.time.LocalTime
 
@@ -53,6 +55,16 @@ class NarrationScriptsTest {
         assertEquals("22.5", request.facts["설정온도C"])
         assertEquals("일출", request.facts["기상기준"])
         assertEquals("오늘 밤은 숲 테마로 쉬어요. 설정 온도는 22.5도이고, 일출 시각인 07:10에 깨워 드릴게요. 편히 쉬세요.", request.template)
+    }
+
+    @Test
+    fun `예상 잔량이 하한 아래면 주의를 문장으로 넘기고 준비된 문장에도 넣는다`() {
+        val settings = BedtimeSettings(targetTempC = 24f, wakeAt = LocalTime.of(7, 0), wakeBasis = WakeBasis.MANUAL, theme = PlaceType.FOREST)
+        val request = NarrationScripts.bedtime(settings, null, 30, MorningForecast(12, 18, 3, belowLimit = true))
+        assertEquals("12~18", request.facts["아침예상잔량퍼센트"])
+        assertEquals("아침에 배터리가 20%보다 낮아질 수 있으니 설정 온도를 조금 낮추는 걸 권해요.", request.facts["주의"])
+        assertTrue(request.template.contains("12에서 18퍼센트"))
+        assertTrue(request.template.contains("설정 온도를 조금 낮추는 걸 권해요"))
     }
 
     @Test

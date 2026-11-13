@@ -18,17 +18,19 @@ export type Facts = Record<string, string | number | boolean | string[] | null>;
 export const DEFAULT_MODEL = "gpt-5.4-mini";
 
 /**
- * 출력 제한 (제안값, 이슈 #23).
- * 아침 브리핑은 경고·날씨·배터리·실내 온도까지 사실이 4개라 한 문장 더 허용한다 (에뮬레이터 실측: 3문장 제한에 걸려 템플릿으로 대체됨).
+ * 출력 제한 (제안값, 이슈 #23·#25).
+ * - 아침: 경고·날씨·배터리·실내 온도까지 사실이 4개 (실측: 3문장 제한에 걸려 템플릿으로 대체됨)
+ * - 잠들기 전: 설정·예상 잔량·배터리 주의·인사까지 5문장 (실측: 주의를 넣으면 5문장). 주의를 빼는 것보다 길어지는 게 낫다
  */
 export const NARRATION_LIMITS = {
-  maxChars: 160,
-  maxSentences: { ARRIVAL: 3, BEDTIME: 3, MORNING: 4 } satisfies Record<Moment, number>,
+  maxChars: 180,
+  maxSentences: { ARRIVAL: 3, BEDTIME: 5, MORNING: 4 } satisfies Record<Moment, number>,
 };
 
 const MOMENT_GUIDE: Record<Moment, string> = {
   ARRIVAL: "차박 장소에 막 도착한 순간이다. 안내 등급과 그 이유를 먼저 짧게 전한다. 등급이 '주의·이동 권장'이면 이동을 권하는 말투를 유지한다.",
-  BEDTIME: "잠들기 직전이다. 오늘 밤 설정(온도, 기상 시각, 테마)을 차분하게 확인해 주고 편히 쉬라는 인사로 끝낸다.",
+  BEDTIME:
+    "잠들기 직전이다. 오늘 밤 설정(온도, 기상 시각, 테마)을 차분하게 확인해 준다. 아침 예상 잔량이 있으면 함께 알려 주고, '주의'가 있으면 빼지 말고 꼭 전한다. 편히 쉬라는 인사로 끝낸다.",
   MORNING: "막 일어난 아침이다. 경고가 있으면 가장 먼저 전하고, 그다음 바깥 날씨와 차량 상태를 밝게 알려 준다.",
 };
 

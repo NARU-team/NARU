@@ -53,6 +53,7 @@ private fun NaruApp(app: NaruApplication) {
                 app.morningAlarm,
                 app.narrationRepository,
                 app.voiceGuide,
+                app.recordStore,
             ) } },
     )
 
@@ -98,6 +99,8 @@ private fun NaruApp(app: NaruApplication) {
                 VehicleDebugPanel(
                     fake = app.vehicleGateway as? FakeVehicleGateway,
                     onSimulateWakeTime = campingViewModel::simulateWakeTime,
+                    onAddSampleRecords = campingViewModel::addSampleRecords,
+                    onClearRecords = campingViewModel::clearRecords,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

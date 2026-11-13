@@ -27,6 +27,8 @@ fun VehicleDebugPanel(
     fake: FakeVehicleGateway?,
     onSimulateWakeTime: () -> Unit,
     modifier: Modifier = Modifier,
+    onAddSampleRecords: () -> Unit = {},
+    onClearRecords: () -> Unit = {},
 ) {
     Surface(
         modifier = modifier,
@@ -48,6 +50,9 @@ fun VehicleDebugPanel(
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onSimulateWakeTime) { Text("기상 시각 도달") }
+                // 시연용: 에뮬레이터의 밤은 짧아 실제 기록으로는 예상 잔량이 나오지 않는다
+                OutlinedButton(onClick = onAddSampleRecords) { Text("샘플 기록 추가") }
+                OutlinedButton(onClick = onClearRecords) { Text("기록 지우기") }
             }
         }
     }

@@ -63,19 +63,22 @@ class NightPreparer(private val vehicle: VehicleGateway) {
             ambient = if (capabilities.ambientBrightnessRange != null) vehicle.getAmbientLight().valueOrNull() else null,
         )
 
-        val temperature = if (capabilities.targetTemperatureRange == null) {
-            ControlResult.NotSupported
-        } else {
-            when (val result = vehicle.setTargetTemperature(settings.targetTempC)) {
-                is VehicleResult.Failure -> ControlResult.Failed(result.reason)
-                is VehicleResult.Success -> {
-                    val actual = vehicle.getTargetTemperature().valueOrNull()
-                    if (actual == settings.targetTempC) ControlResult.Applied else ControlResult.Unverified
-                }
+        return NightPreparation(backup, applyTemperature(settings.targetTempC, capabilities.targetTemperatureRange != null))
+    }
+
+    /**
+     * 설정 온도 적용: 지원 확인 → 적용 → 다시 조회해서 확인. 밤 단계의 발화 해석 승인에도 쓴다 (이슈 #27).
+     */
+    suspend fun applyTemperature(celsius: Float, supported: Boolean? = null): ControlResult {
+        val canControl = supported ?: (vehicle.capabilities().targetTemperatureRange != null)
+        if (!canControl) return ControlResult.NotSupported
+        return when (val result = vehicle.setTargetTemperature(celsius)) {
+            is VehicleResult.Failure -> ControlResult.Failed(result.reason)
+            is VehicleResult.Success -> {
+                val actual = vehicle.getTargetTemperature().valueOrNull()
+                if (actual == celsius) ControlResult.Applied else ControlResult.Unverified
             }
         }
-
-        return NightPreparation(backup, temperature)
     }
 
     private fun <T> VehicleResult<T>.valueOrNull(): T? = (this as? VehicleResult.Success)?.value

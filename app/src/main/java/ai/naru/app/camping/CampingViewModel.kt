@@ -19,6 +19,15 @@ import ai.naru.app.camping.morning.MorningLightApplier
 import ai.naru.app.camping.morning.MorningRules
 import ai.naru.app.camping.morning.RestoreReport
 import ai.naru.app.camping.morning.SettingsRestorer
+import ai.naru.app.camping.intent.DisabledIntent
+import ai.naru.app.camping.intent.IntentContext
+import ai.naru.app.camping.intent.IntentRepository
+import ai.naru.app.camping.intent.IntentRules
+import ai.naru.app.camping.intent.ProposedChange
+import ai.naru.app.camping.intent.SpeechEvent
+import ai.naru.app.camping.intent.SpeechInput
+import ai.naru.app.camping.intent.Turn
+import ai.naru.app.camping.intent.TurnRole
 import ai.naru.app.camping.narration.NarrationMoment
 import ai.naru.app.camping.narration.NarrationRepository
 import ai.naru.app.camping.narration.NarrationRequest
@@ -101,6 +110,25 @@ data class CampingUiState(
     val nightEndBattery: Int? = null,
     /** 밤이 끝난 이유 (기상 시각·배터리 하한·기어 이탈). 기록에 남긴다 */
     val morningReason: EndReason? = null,
+    /** 발화 해석 (취침 준비·밤 단계) */
+    val assistant: AssistantState = AssistantState(),
+)
+
+/**
+ * 발화 해석 대화.
+ * @property turns 같은 단계 안의 대화 (멀티턴). 단계가 바뀌면 지운다
+ * @property pending 승인을 기다리는 변경. [바꾸기]를 눌러야 규칙 코드로 실행된다
+ */
+data class AssistantState(
+    val available: Boolean = false,
+    val turns: List<Turn> = emptyList(),
+    val pending: List<ProposedChange> = emptyList(),
+    val busy: Boolean = false,
+    val listening: Boolean = false,
+    /** 음성 인식 중간 결과 */
+    val partial: String? = null,
+    /** 이해하지 못했거나 음성 입력을 쓸 수 없을 때 안내 */
+    val notice: String? = null,
 )
 
 /** 멘트 하나. AI 멘트를 기다리는 동안에는 준비된 문장을 먼저 보여준다. */
@@ -155,6 +183,8 @@ class CampingViewModel(
     private val narration: NarrationRepository,
     private val voice: VoiceGuide,
     private val recordStore: SessionRecordStore = InMemorySessionRecordStore(),
+    private val intents: IntentRepository = DisabledIntent,
+    private val speech: SpeechInput? = null,
     /** 지금 시각. 테스트에서 바꿔 끼운다. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
 ) : ViewModel() {
@@ -182,7 +212,11 @@ class CampingViewModel(
     /** 복구가 끝나면 이 이유로 세션을 끝낸다 (아침에 기어가 P를 벗어난 경우). */
     private var pendingEndReason: EndReason? = null
 
-    private val _state = MutableStateFlow(CampingUiState())
+    /** 발화 해석 요청·음성 인식 제한 시간 작업 */
+    private var assistantJob: Job? = null
+    private var listenTimeoutJob: Job? = null
+
+    private val _state = MutableStateFlow(CampingUiState(assistant = AssistantState(available = intents.available)))
     val state: StateFlow<CampingUiState> = _state.asStateFlow()
 
     init {
@@ -463,6 +497,139 @@ class CampingViewModel(
         }
     }
 
+    // --- 발화 해석 (P1) ---
+
+    /**
+     * 사용자 요청을 서버(LLM)로 해석해 제안을 받는다. 제안은 규칙으로 다시 검사하고, 승인 전에는 아무것도 바꾸지 않는다.
+     * 최근 대화를 함께 보내 "아니 1도 더" 같은 고쳐 말하기와 되묻기에 답할 수 있다.
+     */
+    fun ask(utterance: String) {
+        val text = utterance.trim().take(MAX_UTTERANCE)
+        val state = _state.value
+        if (text.isEmpty() || !state.assistant.available || state.stage !in IntentRules.STAGES || state.assistant.busy) return
+        val history = state.assistant.turns.takeLast(MAX_HISTORY_TURNS)
+        val context = intentContext(state)
+        updateAssistant { it.copy(turns = it.turns + Turn(TurnRole.USER, text), busy = true, partial = null, notice = null, pending = emptyList()) }
+        assistantJob = viewModelScope.launch {
+            val reply = intents.interpret(text, history, context)
+            val now = _state.value
+            if (now.stage != context.stage) return@launch // 기다리는 사이 단계가 바뀜
+            if (reply == null) {
+                updateAssistant { it.copy(busy = false, notice = NOT_UNDERSTOOD) }
+                return@launch
+            }
+            val changes = IntentRules.resolve(reply.proposals, intentContext(now))
+            // 제안이 있었지만 규칙 검사 후 바꿀 것이 없으면 "바꿀까요?"라고 묻지 않는다 (예: 지금과 같은 값)
+            val text = if (reply.proposals.isNotEmpty() && changes.isEmpty()) NOTHING_TO_CHANGE else reply.reply
+            updateAssistant { it.copy(turns = it.turns + Turn(TurnRole.ASSISTANT, text), pending = changes, busy = false) }
+            if (now.voiceOn) voice.speak(text)
+        }
+    }
+
+    /** [바꾸기]: 승인한 변경을 기존 규칙 코드로 실행한다. */
+    fun approveChanges() {
+        val changes = _state.value.assistant.pending
+        if (changes.isEmpty()) return
+        updateAssistant { it.copy(pending = emptyList()) }
+        viewModelScope.launch {
+            for (change in changes) apply(change)
+            reply(DONE)
+        }
+    }
+
+    /** [취소]: 아무것도 바꾸지 않는다. */
+    fun rejectChanges() {
+        if (_state.value.assistant.pending.isEmpty()) return
+        updateAssistant { it.copy(pending = emptyList()) }
+        reply(KEPT)
+    }
+
+    /** 마이크 버튼: 한 문장을 듣고 그대로 [ask]한다. 실패하면 글로 입력하라고 안내한다. */
+    fun toggleListening() {
+        val input = speech ?: return
+        if (_state.value.assistant.listening) {
+            stopListening()
+            return
+        }
+        voice.stop()
+        updateAssistant { it.copy(listening = true, partial = null, notice = null) }
+        listenTimeoutJob = viewModelScope.launch {
+            delay(LISTEN_TIMEOUT_MS)
+            stopListening()
+        }
+        input.listen { event ->
+            when (event) {
+                SpeechEvent.Listening -> Unit
+                is SpeechEvent.Partial -> updateAssistant { it.copy(partial = event.text) }
+                is SpeechEvent.Final -> {
+                    stopListening()
+                    ask(event.text)
+                }
+                is SpeechEvent.Failed -> {
+                    stopListening()
+                    updateAssistant { it.copy(notice = VOICE_UNAVAILABLE) }
+                }
+                SpeechEvent.Ended -> stopListening()
+            }
+        }
+    }
+
+    private fun stopListening() {
+        listenTimeoutJob?.cancel()
+        listenTimeoutJob = null
+        speech?.stop()
+        updateAssistant { it.copy(listening = false, partial = null) }
+    }
+
+    private suspend fun apply(change: ProposedChange) {
+        when (change) {
+            is ProposedChange.Temperature -> {
+                updateBedtime { it.copy(settings = it.settings.copy(targetTempC = change.to)) }
+                // 밤에는 차량에 바로 적용한다 (지원 확인 → 적용 → 다시 조회, 실패해도 다시 시도하지 않음)
+                if (_state.value.stage == CampingStage.NIGHT) {
+                    val result = nightPreparer.applyTemperature(change.to)
+                    _state.update { it.copy(temperatureApply = result) }
+                }
+            }
+            is ProposedChange.WakeTime -> updateBedtime {
+                it.copy(settings = it.settings.copy(wakeAt = change.to, wakeBasis = if (change.sunrise) WakeBasis.SUNRISE else WakeBasis.MANUAL))
+            }
+            is ProposedChange.Theme -> updateBedtime { it.copy(settings = it.settings.copy(theme = change.to)) }
+            is ProposedChange.Sound -> if (_state.value.soundOn != change.on) toggleSound()
+            is ProposedChange.Voice -> if (_state.value.voiceOn != change.on) toggleVoice()
+        }
+    }
+
+    private fun reply(text: String) {
+        updateAssistant { it.copy(turns = it.turns + Turn(TurnRole.ASSISTANT, text)) }
+        if (_state.value.voiceOn) voice.speak(text)
+    }
+
+    private fun intentContext(state: CampingUiState): IntentContext {
+        val bedtime = state.bedtime
+        return IntentContext(
+            stage = state.stage,
+            targetTempC = bedtime?.settings?.targetTempC,
+            vehicleTempRange = bedtime?.vehicleTempRange,
+            wakeAt = bedtime?.settings?.wakeAt,
+            sunrise = bedtime?.sunrise,
+            theme = bedtime?.settings?.theme,
+            soundOn = state.soundOn,
+            voiceOn = state.voiceOn,
+        )
+    }
+
+    private fun updateAssistant(transform: (AssistantState) -> AssistantState) {
+        _state.update { it.copy(assistant = transform(it.assistant)) }
+    }
+
+    /** 단계가 바뀌면 대화를 지운다 (멀티턴은 같은 단계 안에서만) */
+    private fun resetAssistant() {
+        assistantJob?.cancel()
+        if (_state.value.assistant.listening) stopListening()
+        _state.update { it.copy(assistant = AssistantState(available = intents.available)) }
+    }
+
     // --- 멘트와 음성 안내 ---
 
     fun toggleVoice() {
@@ -574,6 +741,7 @@ class CampingViewModel(
         sound.stop()
         alarm.stop()
         voice.release()
+        speech?.release()
     }
 
     private fun dispatch(event: CampingEvent) {
@@ -588,6 +756,7 @@ class CampingViewModel(
                 if (previous != CampingStage.MORNING && result.stage == CampingStage.MORNING) onEnterMorning()
                 if (previous == CampingStage.MORNING && result.stage != CampingStage.MORNING) onLeaveMorning()
                 if (result.stage == CampingStage.IDLE) stopNarration()
+                if (result.stage != previous) resetAssistant()
                 if (result.stage == CampingStage.IDLE && previous in setOf(CampingStage.NIGHT, CampingStage.MORNING)) {
                     saveRecord(result.reason ?: EndReason.COMPLETED)
                 }
@@ -632,6 +801,14 @@ class CampingViewModel(
 
     private companion object {
         const val TAG = "CampingViewModel"
+        const val MAX_UTTERANCE = 100
+        const val MAX_HISTORY_TURNS = 6
+        const val LISTEN_TIMEOUT_MS = 10_000L
+        const val NOT_UNDERSTOOD = "이해하지 못했어요. 아래 예시처럼 말해 주세요."
+        const val VOICE_UNAVAILABLE = "음성 입력을 쓸 수 없어요. 글로 입력해 주세요."
+        const val DONE = "바꿨어요."
+        const val KEPT = "그대로 둘게요."
+        const val NOTHING_TO_CHANGE = "지금 설정과 같거나 바꿀 수 없는 값이라 그대로 둘게요."
         val DEFAULT_WAKE_AT: LocalTime = LocalTime.of(7, 0)
         const val WAKE_CHECK_INTERVAL_MS = 15_000L
     }

@@ -6,7 +6,10 @@ import ai.naru.app.camping.EndReason
 import ai.naru.app.camping.arrival.Site
 import ai.naru.app.ui.theme.NaruTheme
 import ai.naru.app.vehicle.Gear
+import ai.naru.app.camping.intent.IntentRules
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +35,9 @@ data class CampingActions(
     val bedtime: BedtimeActions = BedtimeActions(),
     val onToggleSound: () -> Unit = {},
     val onToggleVoice: () -> Unit = {},
+    val assistant: AssistantActions = AssistantActions(),
+    /** 음성 입력(마이크 버튼)을 보여줄지 */
+    val voiceInputAvailable: Boolean = false,
     val morning: MorningActions = MorningActions(),
     val onDismissMessage: () -> Unit = {},
     val onBack: () -> Unit = {},
@@ -67,10 +73,27 @@ fun CampingScreen(
         }
 
         Spacer(Modifier.height(8.dp))
-        state.narration?.takeIf { it.belongsTo(state.stage) }?.let {
-            NarrationCard(narration = it, voiceOn = state.voiceOn, onToggleVoice = actions.onToggleVoice)
+        val showAssistant = state.assistant.available && state.stage in IntentRules.STAGES
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Column(
+                modifier = Modifier.weight(1.4f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                state.narration?.takeIf { it.belongsTo(state.stage) }?.let {
+                    NarrationCard(narration = it, voiceOn = state.voiceOn, onToggleVoice = actions.onToggleVoice)
+                }
+                StageContent(state = state, actions = actions)
+            }
+            if (showAssistant) {
+                AssistantPanel(
+                    stage = state.stage,
+                    assistant = state.assistant,
+                    voiceInputAvailable = actions.voiceInputAvailable,
+                    actions = actions.assistant,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
-        StageContent(state = state, actions = actions)
     }
 }
 

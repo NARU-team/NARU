@@ -21,6 +21,8 @@
     <uses-permission android:name="pleos.car.permission.FUSED_LOCATION" />
     <!-- TextToSpeech SDK: 멘트 음성 출력 -->
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- SpeechToText SDK: 발화 해석 음성 입력 (SDK가 확인하는 권한, 이슈 #27) -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
     <!-- AAOS: 기어(GEAR_SELECTION) 조회. 에뮬레이터에서 이 권한으로 조회 확인(2026-11-13) -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
 

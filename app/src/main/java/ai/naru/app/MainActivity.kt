@@ -4,6 +4,7 @@ import ai.naru.app.camping.CampingViewModel
 import ai.naru.app.ui.camping.BedtimeActions
 import ai.naru.app.ui.camping.CampingActions
 import ai.naru.app.ui.camping.CampingScreen
+import ai.naru.app.ui.camping.AssistantActions
 import ai.naru.app.ui.camping.MorningActions
 import ai.naru.app.ui.debug.VehicleDebugPanel
 import ai.naru.app.ui.home.ModeSelectScreen
@@ -54,6 +55,8 @@ private fun NaruApp(app: NaruApplication) {
                 app.narrationRepository,
                 app.voiceGuide,
                 app.recordStore,
+                app.intentRepository,
+                app.speechInput,
             ) } },
     )
 
@@ -83,6 +86,13 @@ private fun NaruApp(app: NaruApplication) {
                             ),
                             onToggleSound = campingViewModel::toggleSound,
                             onToggleVoice = campingViewModel::toggleVoice,
+                            assistant = AssistantActions(
+                                onAsk = campingViewModel::ask,
+                                onToggleListening = campingViewModel::toggleListening,
+                                onApprove = campingViewModel::approveChanges,
+                                onReject = campingViewModel::rejectChanges,
+                            ),
+                            voiceInputAvailable = true,
                             morning = MorningActions(
                                 onWakeUp = campingViewModel::wakeUp,
                                 onFinish = campingViewModel::finishSession,

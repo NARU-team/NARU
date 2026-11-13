@@ -4,6 +4,11 @@ import ai.naru.app.camping.arrival.DemoSiteRepository
 import ai.naru.app.camping.arrival.ServerSiteRepository
 import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.camping.morning.AndroidMorningAlarm
+import ai.naru.app.camping.intent.DisabledIntent
+import ai.naru.app.camping.intent.IntentRepository
+import ai.naru.app.camping.intent.PleosSpeechInput
+import ai.naru.app.camping.intent.ServerIntentRepository
+import ai.naru.app.camping.intent.SpeechInput
 import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.narration.NarrationRepository
 import ai.naru.app.camping.narration.PleosVoiceGuide
@@ -49,6 +54,14 @@ class NaruApplication : Application() {
     }
 
     val voiceGuide: VoiceGuide by lazy { PleosVoiceGuide(this) }
+
+    /** 발화 해석: 서버가 있을 때만 (LLM 호출은 서버에서) */
+    val intentRepository: IntentRepository by lazy {
+        if (BuildConfig.SERVER_URL.isNotBlank()) ServerIntentRepository(BuildConfig.SERVER_URL) else DisabledIntent
+    }
+
+    /** 음성 입력 (Pleos SpeechToText, ON_DEVICE) */
+    val speechInput: SpeechInput by lazy { PleosSpeechInput(this) }
 
     /** 차박 기록 (앱 내부 저장소 파일) */
     val recordStore: SessionRecordStore by lazy { FileSessionRecordStore(File(filesDir, "session_records.json")) }

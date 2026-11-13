@@ -27,6 +27,7 @@ import java.time.LocalTime
 import ai.naru.app.vehicle.Gear
 import ai.naru.app.vehicle.VehicleGateway
 import ai.naru.app.vehicle.VehicleResult
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -49,6 +50,8 @@ data class CampingUiState(
     val message: String? = null,
     /** 도착 단계: 고를 수 있는 장소 */
     val sites: List<Site> = emptyList(),
+    /** 도착 단계: 장소 목록을 불러오지 못함 (서버 연결 실패) */
+    val sitesUnavailable: Boolean = false,
     /** 도착 단계: 고른 장소와 그 판정 결과 */
     val arrival: ArrivalState? = null,
     /** 취침 준비 단계: 오늘 밤 설정 */
@@ -150,9 +153,19 @@ class CampingViewModel(
                 checkBatteryLimit()
             }
         }
+        loadSites()
+    }
+
+    /** 장소 목록을 불러온다. 실패하면 화면에 다시 시도를 보여준다. */
+    fun loadSites() {
         viewModelScope.launch {
-            val sites = siteRepository.sites()
-            _state.update { it.copy(sites = sites) }
+            val sites = try {
+                siteRepository.sites()
+            } catch (e: Exception) {
+                Log.w(TAG, "장소 목록을 불러오지 못함", e)
+                null
+            }
+            _state.update { it.copy(sites = sites ?: it.sites, sitesUnavailable = sites == null) }
         }
     }
 
@@ -448,6 +461,7 @@ class CampingViewModel(
     }
 
     private companion object {
+        const val TAG = "CampingViewModel"
         val DEFAULT_WAKE_AT: LocalTime = LocalTime.of(7, 0)
         const val WAKE_CHECK_INTERVAL_MS = 15_000L
     }

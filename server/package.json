@@ -1,0 +1,17 @@
+{
+  "name": "naru-server",
+  "private": true,
+  "description": "NARU 중계 서버: 장소 정보(기상청·조석·일출)와 멘트 생성 API. 외부 서비스 키는 여기에만 둔다.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "dev": "vercel dev"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2"
+  }
+}

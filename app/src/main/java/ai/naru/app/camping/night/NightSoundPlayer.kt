@@ -56,6 +56,9 @@ class AndroidNightSound(context: Context) : NightSound {
             .setOnAudioFocusChangeListener(focusListener)
             .build()
         if (audioManager.requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            // 차량 오디오 정책 응답이 늦으면 앱은 실패로 받는데 시스템은 나중에 포커스를 줄 수 있다 (에뮬레이터 실측).
+            // 그대로 두면 쓰지도 않는 포커스를 계속 쥐고 있으므로 반드시 반납한다.
+            audioManager.abandonAudioFocusRequest(request)
             Log.w(TAG, "오디오 포커스를 얻지 못해 테마 소리를 재생하지 않음")
             return false
         }

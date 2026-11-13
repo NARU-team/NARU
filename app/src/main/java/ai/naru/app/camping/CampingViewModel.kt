@@ -13,6 +13,12 @@ import ai.naru.app.camping.bedtime.ControlResult
 import ai.naru.app.camping.bedtime.TemperatureRecommendation
 import ai.naru.app.camping.bedtime.VehicleBackup
 import ai.naru.app.camping.bedtime.WakeBasis
+import ai.naru.app.camping.morning.MorningAlarm
+import ai.naru.app.camping.morning.MorningBriefing
+import ai.naru.app.camping.morning.MorningLightApplier
+import ai.naru.app.camping.morning.MorningRules
+import ai.naru.app.camping.morning.RestoreReport
+import ai.naru.app.camping.morning.SettingsRestorer
 import ai.naru.app.camping.night.NightRules
 import ai.naru.app.camping.night.NightSound
 import ai.naru.app.camping.night.ThemeLightApplier
@@ -20,6 +26,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import ai.naru.app.vehicle.Gear
 import ai.naru.app.vehicle.VehicleGateway
+import ai.naru.app.vehicle.VehicleResult
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -58,6 +65,25 @@ data class CampingUiState(
     val soundPlaying: Boolean = false,
     /** 밤 단계: 아침으로 넘어갈 일시 */
     val wakeDateTime: LocalDateTime? = null,
+    /** 밤을 시작할 때의 배터리 잔량. 아침 브리핑에서 밤사이 사용량을 구한다. */
+    val nightStartBattery: Int? = null,
+    /** 기상 단계 상태. 세션이 끝난 뒤에도 남겨 두고(복구 결과 안내), 새 세션을 시작하면 지운다. */
+    val morning: MorningState? = null,
+)
+
+data class MorningState(
+    /** 알람이 울리는 중인지 */
+    val alarmRinging: Boolean = false,
+    /** 알람을 울리지 못했는지 (포커스·알람음 없음). 화면 안내용 */
+    val alarmUnavailable: Boolean = false,
+    /** 아침 조명 결과. 적용 전이면 null */
+    val lightApply: ControlResult? = null,
+    /** 아침 브리핑. 만들기 전이면 null */
+    val briefing: MorningBriefing? = null,
+    /** 설정 복구 중인지 */
+    val restoring: Boolean = false,
+    /** 설정 복구 결과. 복구 전이면 null */
+    val restore: RestoreReport? = null,
 )
 
 data class BedtimeState(
@@ -85,13 +111,25 @@ class CampingViewModel(
     private val vehicle: VehicleGateway,
     private val siteRepository: SiteRepository,
     private val sound: NightSound,
+    private val alarm: MorningAlarm,
 ) : ViewModel() {
 
     private val nightPreparer = NightPreparer(vehicle)
     private val themeLightApplier = ThemeLightApplier(vehicle)
+    private val morningLightApplier = MorningLightApplier(vehicle)
+    private val settingsRestorer = SettingsRestorer(vehicle)
 
     /** 밤 단계 동안만 도는 작업 (조명 적용, 기상 시각 확인). 밤을 벗어나면 취소한다. */
     private var nightJob: Job? = null
+
+    /** 기상 단계 준비 작업 (조명, 브리핑). 복구는 이 작업이 끝난 뒤에 한다. */
+    private var morningJob: Job? = null
+
+    /** 설정 복구 작업. 한 번만 돈다. */
+    private var restoreJob: Job? = null
+
+    /** 복구가 끝나면 이 이유로 세션을 끝낸다 (아침에 기어가 P를 벗어난 경우). */
+    private var pendingEndReason: EndReason? = null
 
     private val _state = MutableStateFlow(CampingUiState())
     val state: StateFlow<CampingUiState> = _state.asStateFlow()
@@ -187,6 +225,7 @@ class CampingViewModel(
                 it.copy(
                     backup = preparation.backup,
                     temperatureApply = preparation.temperature,
+                    nightStartBattery = it.batteryPercent,
                     bedtime = it.bedtime?.copy(preparing = false),
                 )
             }
@@ -197,9 +236,6 @@ class CampingViewModel(
     private fun updateBedtime(transform: (BedtimeState) -> BedtimeState) {
         _state.update { state -> state.bedtime?.let { state.copy(bedtime = transform(it)) } ?: state }
     }
-
-    /** TODO(다음 이슈): 실제 설정 복구가 끝나면 호출되도록 바꾼다. 지금은 버튼으로 대신한다. */
-    fun finishRestore() = dispatch(CampingEvent.Restored)
 
     fun dismissMessage() = _state.update { it.copy(message = null) }
 
@@ -264,8 +300,87 @@ class CampingViewModel(
         _state.update { it.copy(soundPlaying = false) }
     }
 
+    // --- 기상 단계 ---
+
+    /** "일어났어요": 알람을 끄고 원래 차량 설정을 되돌린다. */
+    fun wakeUp() {
+        if (_state.value.stage != CampingStage.MORNING) return
+        stopAlarm()
+        startRestore()
+    }
+
+    /** "차박 마치기": 복구가 끝난 뒤에만 세션을 정상 종료한다. */
+    fun finishSession() {
+        if (_state.value.morning?.restore == null) return
+        dispatch(CampingEvent.Restored())
+    }
+
+    private fun onEnterMorning() {
+        val playing = alarm.start()
+        _state.update { it.copy(morning = MorningState(alarmRinging = playing, alarmUnavailable = !playing)) }
+
+        morningJob = viewModelScope.launch {
+            val light = morningLightApplier.apply()
+            updateMorning { it.copy(lightApply = light) }
+
+            val state = _state.value
+            val cabin = (vehicle.getCabinTemperature() as? VehicleResult.Success)?.value
+            val briefing = MorningRules.briefing(
+                reason = state.lastEndReason,
+                weather = state.arrival?.conditions?.morningWeather,
+                batteryAtNightStart = state.nightStartBattery,
+                batteryNow = state.batteryPercent,
+                cabinTempC = cabin,
+            )
+            updateMorning { it.copy(briefing = briefing) }
+        }
+    }
+
+    private fun onLeaveMorning() {
+        morningJob?.cancel()
+        morningJob = null
+        stopAlarm()
+    }
+
+    /** 아침에 기어가 P를 벗어났다. 복구를 먼저 마치고 [reason]으로 끝낸다. */
+    private fun endAfterRestore(reason: EndReason) {
+        stopAlarm()
+        if (_state.value.morning?.restore != null) {
+            dispatch(CampingEvent.Restored(reason))
+            return
+        }
+        pendingEndReason = reason
+        startRestore()
+    }
+
+    private fun startRestore() {
+        if (restoreJob != null || _state.value.morning?.restore != null) return
+        updateMorning { it.copy(restoring = true) }
+        restoreJob = viewModelScope.launch {
+            // 아침 조명을 켜는 중이면 끝난 뒤에 되돌린다. 순서가 바뀌면 아침 조명이 남는다.
+            morningJob?.join()
+            val report = settingsRestorer.restore(_state.value.backup)
+            updateMorning { it.copy(restoring = false, restore = report) }
+            restoreJob = null
+            pendingEndReason?.let { reason ->
+                pendingEndReason = null
+                dispatch(CampingEvent.Restored(reason))
+            }
+        }
+    }
+
+    private fun stopAlarm() {
+        alarm.stop()
+        updateMorning { it.copy(alarmRinging = false) }
+    }
+
+    private fun updateMorning(transform: (MorningState) -> MorningState) {
+        _state.update { state -> state.morning?.let { state.copy(morning = transform(it)) } ?: state }
+    }
+
     override fun onCleared() {
         sound.stop()
+        alarm.stop()
     }
 
     private fun dispatch(event: CampingEvent) {
@@ -275,7 +390,10 @@ class CampingViewModel(
                 applyMove(event, result)
                 if (previous != CampingStage.NIGHT && result.stage == CampingStage.NIGHT) onEnterNight()
                 if (previous == CampingStage.NIGHT && result.stage != CampingStage.NIGHT) onLeaveNight()
+                if (previous != CampingStage.MORNING && result.stage == CampingStage.MORNING) onEnterMorning()
+                if (previous == CampingStage.MORNING && result.stage != CampingStage.MORNING) onLeaveMorning()
             }
+            is CampingTransition.RestoreThenEnd -> endAfterRestore(result.reason)
             is CampingTransition.Rejected -> {
                 // 사용자가 직접 누른 시작만 거절 이유를 보여준다.
                 // 기어 변경 같은 차량 사건의 거절은 "해당 없음"이라 조용히 무시한다.
@@ -300,6 +418,8 @@ class CampingViewModel(
                     temperatureApply = if (event is CampingEvent.Start) null else it.temperatureApply,
                     lightApply = if (event is CampingEvent.Start) null else it.lightApply,
                     wakeDateTime = if (event is CampingEvent.Start) null else it.wakeDateTime,
+                    nightStartBattery = if (event is CampingEvent.Start) null else it.nightStartBattery,
+                    morning = if (event is CampingEvent.Start) null else it.morning,
                 )
             }
     }

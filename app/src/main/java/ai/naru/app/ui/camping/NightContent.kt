@@ -53,7 +53,7 @@ fun NightContent(state: CampingUiState, onToggleSound: () -> Unit) {
 }
 
 /** 차량 제어 결과 안내. 실패하면 자동으로 다시 시도하지 않고 직접 조작을 안내한다. */
-private fun ControlResult.notice(subject: String, applied: String): String = when (this) {
+internal fun ControlResult.notice(subject: String, applied: String): String = when (this) {
     ControlResult.Applied -> applied
     ControlResult.Unverified -> "$subject 변경을 요청했지만 반영을 확인하지 못했어요. 차량 화면에서 확인해 주세요."
     ControlResult.NotSupported -> "이 차량은 $subject 제어를 지원하지 않아요. 필요하면 직접 조절해 주세요."

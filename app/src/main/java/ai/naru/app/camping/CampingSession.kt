@@ -40,14 +40,23 @@ sealed interface CampingEvent {
     /** 기어가 바뀌었다. */
     data class GearChanged(val gear: Gear) : CampingEvent
 
-    /** 아침 단계에서 차량 설정 복구가 끝났다. */
-    data object Restored : CampingEvent
+    /**
+     * 아침 단계에서 차량 설정 복구가 끝났다.
+     * @property endReason 세션을 끝내는 이유. 사용자가 마치면 COMPLETED, 기어 이탈로 복구했으면 GEAR_LEFT_PARK.
+     */
+    data class Restored(val endReason: EndReason = EndReason.COMPLETED) : CampingEvent
 }
 
 /** 전이 결과. */
 sealed interface CampingTransition {
     /** 다음 단계로 이동한다. */
     data class MoveTo(val stage: CampingStage, val reason: EndReason? = null) : CampingTransition
+
+    /**
+     * 단계는 그대로 두고 차량 설정 복구를 먼저 한 뒤, [reason]으로 세션을 끝낸다.
+     * 복구가 끝나면 호출자가 `Restored(reason)`을 보낸다.
+     */
+    data class RestoreThenEnd(val reason: EndReason) : CampingTransition
 
     /** 이 단계에서는 이 사건을 받을 수 없다. 단계는 그대로다. */
     data class Rejected(val why: String) : CampingTransition
@@ -75,13 +84,19 @@ enum class EndReason {
  * - 기어가 P일 때만 세션을 시작한다.
  * - 세션 중 어느 단계든 기어가 P를 벗어나면 세션을 끝낸다.
  *   설계 문서 다이어그램은 `밤`만 다루지만, 기획서의 "P 상태에서만 휴식 세션" 정책을 따라 전 단계에 적용한다.
+ * - 단, 아침 단계에서는 바로 끝내지 않고 차량 설정 복구를 먼저 한다 (이슈 #17).
+ *   아침은 이미 깨어난 상태라 출발하려는 경우가 많고, 복구 없이 끝내면 밤 설정(온도·조명)이 남는다.
  */
 object CampingSessionRules {
 
     fun next(stage: CampingStage, event: CampingEvent): CampingTransition {
         // 기어 이탈은 단계와 관계없이 가장 먼저 처리한다.
         if (event is CampingEvent.GearChanged && event.gear != Gear.PARK && stage != CampingStage.IDLE) {
-            return CampingTransition.MoveTo(CampingStage.IDLE, EndReason.GEAR_LEFT_PARK)
+            return if (stage == CampingStage.MORNING) {
+                CampingTransition.RestoreThenEnd(EndReason.GEAR_LEFT_PARK)
+            } else {
+                CampingTransition.MoveTo(CampingStage.IDLE, EndReason.GEAR_LEFT_PARK)
+            }
         }
 
         return when (stage) {
@@ -112,7 +127,7 @@ object CampingSessionRules {
             }
 
             CampingStage.MORNING -> when (event) {
-                CampingEvent.Restored -> CampingTransition.MoveTo(CampingStage.IDLE, EndReason.COMPLETED)
+                is CampingEvent.Restored -> CampingTransition.MoveTo(CampingStage.IDLE, event.endReason)
                 else -> reject(stage, event)
             }
         }

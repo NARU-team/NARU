@@ -30,12 +30,12 @@ data class CampingActions(
     val onConfirmArrival: () -> Unit = {},
     val bedtime: BedtimeActions = BedtimeActions(),
     val onToggleSound: () -> Unit = {},
-    val onFinishRestore: () -> Unit = {},
+    val morning: MorningActions = MorningActions(),
     val onDismissMessage: () -> Unit = {},
     val onBack: () -> Unit = {},
 )
 
-/** 차박 진행 화면. 단계마다 내용은 자리만 잡아 두고, 다음 이슈에서 채운다. */
+/** 차박 진행 화면. 위에는 단계·차량 상태, 아래에는 단계별 내용을 그린다. */
 @Composable
 fun CampingScreen(
     state: CampingUiState,
@@ -76,6 +76,8 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
             state.lastEndReason?.let {
                 Text(text = "지난 세션: ${it.label()}", style = MaterialTheme.typography.bodyLarge)
             }
+            // 기어 이탈로 복구 후 바로 끝난 경우 등, 직접 확인할 설정이 남았으면 여기서도 알린다.
+            state.morning?.restore?.takeIf { it.needsManualCheck }?.let { RestoreSummary(it) }
             Text(text = "주차(P) 상태에서 차박 모드를 시작할 수 있어요.", style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = actions.onStart) { Text("차박 시작") }
@@ -94,20 +96,8 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
 
         CampingStage.NIGHT -> NightContent(state = state, onToggleSound = actions.onToggleSound)
 
-        CampingStage.MORNING -> {
-            state.lastEndReason?.let {
-                Text(text = "기상 이유: ${it.label()}", style = MaterialTheme.typography.bodyLarge)
-            }
-            // TODO(다음 이슈): 알람, 아침 날씨·차량 상태 브리핑, 설정 복구 실행
-            Placeholder("아침 브리핑과 설정 복구가 여기에 표시돼요.")
-            Button(onClick = actions.onFinishRestore) { Text("차박 종료") }
-        }
+        CampingStage.MORNING -> MorningContent(morning = state.morning, reason = state.lastEndReason, actions = actions.morning)
     }
-}
-
-@Composable
-private fun Placeholder(text: String) {
-    Text(text = text, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outline)
 }
 
 private fun CampingStage.label() = when (this) {

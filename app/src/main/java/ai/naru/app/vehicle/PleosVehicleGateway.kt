@@ -146,19 +146,31 @@ class PleosVehicleGateway(context: Context) : VehicleGateway {
             .requireValue().onFailure { return it }
         val color = awaitCallback<Int?> { ok, fail -> light.getAmbientLightBrightnessColor(area, ok, fail) }
             .requireValue().onFailure { return it }
+        Log.d(TAG, "앰비언트 조회: switch=$switch brightness=$brightness color=${Integer.toHexString(color)}")
         return VehicleResult.Success(AmbientLight(on = switch == LightSwitch.ON, brightness = brightness, colorRgb = color))
     }
 
+    /**
+     * 켤 때는 스위치 → 밝기 → 색, 끌 때는 밝기 → 색 → 스위치 순서로 보낸다.
+     * 끌 때도 밝기·색을 되돌리는 이유: 설정 복구에서 "꺼짐"으로 되돌릴 때 스위치만 끄면 밤·아침 조명의 밝기·색이 남는다.
+     * 에뮬레이터에서는 SDK의 스위치 값과 Virtual Console의 Mode가 서로 반영되지 않아 (2026-11-13 확인, 이슈 #17)
+     * 스위치만 보내면 화면상 조명이 그대로 남는다.
+     */
     override suspend fun setAmbientLight(light: AmbientLight): VehicleResult<Unit> {
         val area = requireAmbientArea() ?: return VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
         val switch = if (light.on) LightSwitch.ON else LightSwitch.OFF
-        awaitCallback { ok, fail -> this.light.setAmbientLightSwitch(area, switch, { _, _ -> ok(Unit) }, fail) }
-            .onFailure { return it }
-        if (!light.on) return VehicleResult.Success(Unit)
+        if (light.on) {
+            awaitCallback { ok, fail -> this.light.setAmbientLightSwitch(area, switch, { _, _ -> ok(Unit) }, fail) }
+                .onFailure { return it }
+        }
         awaitCallback { ok, fail -> this.light.setAmbientLightBrightness(area, light.brightness, { _, _ -> ok(Unit) }, fail) }
             .onFailure { return it }
         if (cachedCapabilities?.ambientColorSupported == true) {
             awaitCallback { ok, fail -> this.light.setAmbientLightBrightnessColor(area, light.colorRgb, { _, _ -> ok(Unit) }, fail) }
+                .onFailure { return it }
+        }
+        if (!light.on) {
+            awaitCallback { ok, fail -> this.light.setAmbientLightSwitch(area, switch, { _, _ -> ok(Unit) }, fail) }
                 .onFailure { return it }
         }
         return VehicleResult.Success(Unit)

@@ -15,7 +15,10 @@ export interface SiteConditions {
 }
 
 export interface ConditionsDeps {
+  /** 기상청 단기예보 키 */
   serviceKey: string | undefined;
+  /** 조석예보 키. 없으면 [serviceKey]를 쓴다 (공공데이터포털은 보통 계정당 키 하나) */
+  tideKey?: string | undefined;
   now: Date;
   /** 기상 시각 HHmm. 도착 시점에는 모르므로 기본 07:00 */
   wake: string;
@@ -27,10 +30,11 @@ export interface ConditionsDeps {
  * TODO(확인 필요): 필드 이름을 확정하면 파서 후보를 줄인다.
  */
 export async function rawTide(site: Site, deps: ConditionsDeps): Promise<unknown> {
-  if (!deps.serviceKey || !site.tideObsCode) return { error: "키 또는 조석 지점 없음" };
+  const key = deps.tideKey || deps.serviceKey;
+  if (!key || !site.tideObsCode) return { error: "키 또는 조석 지점 없음" };
   const night = nightWindow(deps.now);
   try {
-    return { obsCode: site.tideObsCode, items: await fetchTideItems(deps.serviceKey, site.tideObsCode, night.eveningDate) };
+    return { obsCode: site.tideObsCode, items: await fetchTideItems(key, site.tideObsCode, night.eveningDate) };
   } catch (e) {
     return { error: String(e) };
   }
@@ -38,6 +42,7 @@ export async function rawTide(site: Site, deps: ConditionsDeps): Promise<unknown
 
 export async function siteConditions(site: Site, deps: ConditionsDeps): Promise<SiteConditions> {
   const { serviceKey, now, wake, log = console.warn } = deps;
+  const tideKey = deps.tideKey || serviceKey;
   const night = nightWindow(now);
   const sunrise = sunriseKst(night.morningDate, site.lat, site.lon);
 
@@ -50,8 +55,8 @@ export async function siteConditions(site: Site, deps: ConditionsDeps): Promise<
     fetchForecast(serviceKey, toGrid(site.lat, site.lon), now),
     site.tideObsCode
       ? Promise.all([
-          fetchTideItems(serviceKey, site.tideObsCode, night.eveningDate),
-          fetchTideItems(serviceKey, site.tideObsCode, night.morningDate),
+          fetchTideItems(tideKey!, site.tideObsCode, night.eveningDate),
+          fetchTideItems(tideKey!, site.tideObsCode, night.morningDate),
         ]).then((days) => days.flat())
       : Promise.resolve(null),
   ]);

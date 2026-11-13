@@ -14,7 +14,12 @@ export async function GET(request: Request): Promise<Response> {
   const wakeParam = url.searchParams.get("wake") ?? "";
   const wake = /^([01]\d|2[0-3])[0-5]\d$/.test(wakeParam) ? wakeParam : "0700";
 
-  const deps = { serviceKey: process.env.DATA_GO_KR_SERVICE_KEY, now: new Date(), wake };
+  const deps = {
+    serviceKey: process.env.DATA_GO_KR_SERVICE_KEY,
+    tideKey: process.env.DATA_GO_KR_SERVICE_KEY_BEACH,
+    now: new Date(),
+    wake,
+  };
   // 진단: ?debug=tide 이면 조석예보 원본 항목을 그대로 보여준다 (캐시하지 않음)
   if (url.searchParams.get("debug") === "tide") {
     return Response.json(await rawTide(site, deps), { headers: { "Cache-Control": "no-store" } });

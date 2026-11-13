@@ -23,8 +23,12 @@ npm run typecheck
 
 ## 환경 변수
 
-`.env.example` 참고. `DATA_GO_KR_SERVICE_KEY`는 공공데이터포털 일반 인증키의 **디코딩** 값이며 Vercel 환경 변수에만 넣는다.
-필요한 활용 신청: 기상청 단기예보 조회서비스, 국립해양조사원 조석예보(고, 저조).
+`.env.example` 참고. 공공데이터포털 일반 인증키의 **디코딩** 값이며 Vercel 환경 변수에만 넣는다.
+
+| 변수 | 서비스 |
+| --- | --- |
+| `DATA_GO_KR_SERVICE_KEY` | 기상청 단기예보 조회서비스 |
+| `DATA_GO_KR_SERVICE_KEY_BEACH` | 국립해양조사원 조석예보(고, 저조). 없으면 위 키를 쓴다 |
 
 ## 앱 연결
 

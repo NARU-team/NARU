@@ -7,6 +7,7 @@ import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.morning.RestoreReport
 import ai.naru.app.camping.intent.IntentAction
 import ai.naru.app.camping.arrival.LocatedConditions
+import ai.naru.app.camping.arrival.NearbyPlace
 import ai.naru.app.camping.arrival.SiteConditions
 import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.location.FakeLocationGateway
@@ -72,9 +73,13 @@ class CampingViewModelTest {
     private val locationFake = FakeLocationGateway(location = null, permitted = false)
     private var located: LocatedConditions? = null
     private var locateCalls = 0
+    private var nearbyResult: List<NearbyPlace>? = null
+    private val locatedAt = mutableListOf<LatLng>()
     private val sitesRepo = object : SiteRepository by DemoSiteRepository() {
+        override suspend fun nearby(location: LatLng): List<NearbyPlace>? = nearbyResult
         override suspend fun conditionsAt(location: LatLng): LocatedConditions? {
             locateCalls++
+            locatedAt += location
             return located
         }
     }
@@ -410,6 +415,39 @@ class CampingViewModelTest {
         gate.complete(null) // 늦게 끝남
         assertEquals(chosen, vm.state.value.arrival?.site?.id)
         assertEquals(false, vm.state.value.locating)
+    }
+
+    private val camp = NearbyPlace("123", "가평 오토캠핑장", "자동차야영장", PlaceType.FOREST, ai.naru.app.camping.arrival.CampingPermission.ALLOWED, listOf("화장실"), 1.2, 37.6, 127.49)
+
+    @Test
+    fun `시연 지역이 아니면 근처 야영장을 보여주고, 고르면 그 좌표로 판정한다`() {
+        locationFake.permitted = true
+        locationFake.location = LatLng(37.58, 127.48)
+        located = LocatedConditions(null, hereConditions)
+        nearbyResult = listOf(camp)
+        val vm = viewModel()
+        vm.start()
+        assertEquals(listOf(camp), vm.state.value.nearbyPlaces)
+
+        vm.choosePlace(camp)
+        val arrival = vm.state.value.arrival!!
+        assertEquals(LatLng(37.6, 127.49), locatedAt.last())
+        assertEquals("가평 오토캠핑장", arrival.site.name)
+        assertEquals("camp-123", arrival.site.id)
+        assertEquals(ai.naru.app.camping.arrival.CampingPermission.ALLOWED, arrival.site.permission)
+        assertEquals(null, vm.state.value.loadingPlace)
+    }
+
+    @Test
+    fun `근처 야영장 조회가 실패하면 장소 유형만 묻는다`() {
+        locationFake.permitted = true
+        locationFake.location = LatLng(37.58, 127.48)
+        located = LocatedConditions(null, hereConditions)
+        nearbyResult = null
+        val vm = viewModel()
+        vm.start()
+        assertEquals(hereConditions, vm.state.value.hereConditions)
+        assertEquals(emptyList<NearbyPlace>(), vm.state.value.nearbyPlaces)
     }
 
     @Test

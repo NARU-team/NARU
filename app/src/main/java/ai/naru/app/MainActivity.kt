@@ -142,9 +142,12 @@ private fun NaruApp(app: NaruApplication) {
                     narration = state.narration,
                     locating = state.locating,
                     askPlaceType = state.hereConditions != null,
+                    nearbyPlaces = state.nearbyPlaces,
+                    loadingPlace = state.loadingPlace,
                     actions = ArrivalActions(
                         onLocate = { requestLocation(true) },
                         onChoosePlaceType = campingViewModel::choosePlaceType,
+                        onChoosePlace = campingViewModel::choosePlace,
                         onBack = campingViewModel::back,
                         onSelectSite = campingViewModel::selectSite,
                         onRetrySites = campingViewModel::loadSites,

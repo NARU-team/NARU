@@ -36,6 +36,13 @@ class ServerSiteRepository(private val baseUrl: String) : SiteRepository {
         null
     }
 
+    override suspend fun nearby(location: LatLng): List<NearbyPlace>? = try {
+        ServerJson.parseNearby(get("/api/nearby?lat=${location.lat}&lon=${location.lon}"))
+    } catch (e: Exception) {
+        Log.w(TAG, "근처 야영장을 불러오지 못함", e)
+        null
+    }
+
     private suspend fun get(path: String): String = withContext(Dispatchers.IO) {
         val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
         try {
@@ -70,6 +77,27 @@ object ServerJson {
                 placeType = PlaceType.valueOf(o.getString("placeType")),
                 permission = CampingPermission.valueOf(o.getString("permission")),
                 facilities = o.getJSONArray("facilities").let { f -> (0 until f.length()).map { f.getString(it) } },
+            )
+        }
+    }
+
+    /** `/api/nearby` 응답: { places, available }. 조회할 수 없었으면(available=false) null */
+    fun parseNearby(json: String): List<NearbyPlace>? {
+        val o = JSONObject(json)
+        if (!o.optBoolean("available")) return null
+        val a = o.getJSONArray("places")
+        return (0 until a.length()).map { i ->
+            val p = a.getJSONObject(i)
+            NearbyPlace(
+                id = p.getString("id"),
+                name = p.getString("name"),
+                kind = if (p.isNull("kind")) null else p.getString("kind"),
+                placeType = if (p.isNull("placeType")) null else runCatching { PlaceType.valueOf(p.getString("placeType")) }.getOrNull(),
+                permission = runCatching { CampingPermission.valueOf(p.getString("permission")) }.getOrDefault(CampingPermission.UNKNOWN),
+                facilities = p.optJSONArray("facilities")?.let { f -> (0 until f.length()).map { f.getString(it) } } ?: emptyList(),
+                distanceKm = p.getDouble("distanceKm"),
+                lat = p.getDouble("lat"),
+                lon = p.getDouble("lon"),
             )
         }
     }

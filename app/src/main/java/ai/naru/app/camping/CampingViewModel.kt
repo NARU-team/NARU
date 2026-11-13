@@ -55,6 +55,8 @@ import ai.naru.app.vehicle.VehicleGateway
 import ai.naru.app.vehicle.VehicleResult
 import android.util.Log
 import ai.naru.app.camping.arrival.CampingPermission
+import ai.naru.app.camping.arrival.NearbyPlace
+import ai.naru.app.location.LatLng
 import ai.naru.app.location.FakeLocationGateway
 import ai.naru.app.location.LocationGateway
 import androidx.lifecycle.ViewModel
@@ -90,6 +92,10 @@ data class CampingUiState(
     val locating: Boolean = false,
     /** 도착 단계: 시연 지역이 아닌 현재 위치의 오늘 밤 정보. 장소 유형을 고르면 판정한다 */
     val hereConditions: SiteConditions? = null,
+    /** 도착 단계: 현재 위치 근처의 실제 야영장 (이슈 #46). 비어 있으면 장소 유형만 묻는다 */
+    val nearbyPlaces: List<NearbyPlace> = emptyList(),
+    /** 도착 단계: 고른 근처 야영장의 오늘 밤 정보를 불러오는 중 */
+    val loadingPlace: NearbyPlace? = null,
     /** 도착 단계: 고른 장소와 그 판정 결과 */
     val arrival: ArrivalState? = null,
     /** 취침 준비 단계: 오늘 밤 설정 */
@@ -331,10 +337,38 @@ class CampingViewModel(
             when {
                 located == null -> Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
                 located.site != null -> showArrival(_state.value.sites.firstOrNull { it.id == located.site.id } ?: located.site, located.conditions, retried = false)
-                else -> _state.update { it.copy(hereConditions = located.conditions) }
+                else -> {
+                    // 시연 지역이 아니면 근처 실제 야영장을 찾는다 (없거나 실패하면 장소 유형만 묻는다)
+                    val nearby = siteRepository.nearby(here).orEmpty()
+                    if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
+                    _state.update { it.copy(hereConditions = located.conditions, nearbyPlaces = nearby) }
+                }
             }
         }
     }
+
+    /**
+     * 근처 야영장을 고르면 그 좌표로 오늘 밤 정보를 조회해 판정한다.
+     * 허용 여부는 자동차야영장만 등록된 장소로 보고, 장소 유형을 모르면 숲(기본 테마)으로 둔다.
+     */
+    fun choosePlace(place: NearbyPlace) {
+        locateJob?.cancel()
+        _state.update { it.copy(loadingPlace = place) }
+        viewModelScope.launch {
+            val located = siteRepository.conditionsAt(LatLng(place.lat, place.lon))
+            if (_state.value.stage != CampingStage.ARRIVAL_CHECK || _state.value.loadingPlace != place) return@launch
+            _state.update { it.copy(hereConditions = null, loadingPlace = null) }
+            showArrival(place.toSite(), located?.conditions ?: SiteConditions(weather = null, highTides = null), retried = false)
+        }
+    }
+
+    private fun NearbyPlace.toSite() = Site(
+        id = CAMP_SITE_PREFIX + id,
+        name = name,
+        placeType = placeType ?: PlaceType.FOREST,
+        permission = permission,
+        facilities = facilities,
+    )
 
     /** 현재 위치의 장소 유형 ("어떤 곳인가요?"). 허용 여부·시설 데이터가 없어 확인 필요로 판정한다 */
     fun choosePlaceType(type: PlaceType) {
@@ -368,10 +402,12 @@ class CampingViewModel(
     fun retryConditions() {
         val arrival = _state.value.arrival ?: return
         if (arrival.retried) return
-        if (arrival.site.id == HERE_SITE_ID) {
-            // 현재 위치는 좌표로 다시 조회한다 (장소 유형은 그대로)
+        val campPlace = _state.value.nearbyPlaces.firstOrNull { CAMP_SITE_PREFIX + it.id == arrival.site.id }
+        if (arrival.site.id == HERE_SITE_ID || campPlace != null) {
+            // 현재 위치·근처 야영장은 좌표로 다시 조회한다 (장소 유형은 그대로)
             viewModelScope.launch {
-                val located = location.lastKnown()?.let { siteRepository.conditionsAt(it) }
+                val where = campPlace?.let { LatLng(it.lat, it.lon) } ?: location.lastKnown()
+                val located = where?.let { siteRepository.conditionsAt(it) }
                 if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
                 showArrival(arrival.site, located?.conditions ?: arrival.conditions, retried = true)
             }
@@ -385,7 +421,7 @@ class CampingViewModel(
         if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return
         stopNarration()
         locateJob?.cancel()
-        _state.update { it.copy(arrival = null, loadingSite = null, hereConditions = null, locating = false) }
+        _state.update { it.copy(arrival = null, loadingSite = null, hereConditions = null, locating = false, nearbyPlaces = emptyList(), loadingPlace = null) }
     }
 
     private fun loadConditions(site: Site, retried: Boolean) {
@@ -984,6 +1020,8 @@ class CampingViewModel(
                     loadingSite = null,
                     locating = false,
                     hereConditions = null,
+                    nearbyPlaces = if (event is CampingEvent.Start) emptyList() else it.nearbyPlaces,
+                    loadingPlace = null,
                     bedtime = if (event is CampingEvent.Start) null else it.bedtime,
                     backup = if (event is CampingEvent.Start) null else it.backup,
                     temperatureApply = if (event is CampingEvent.Start) null else it.temperatureApply,
@@ -1011,6 +1049,9 @@ class CampingViewModel(
 
         /** 시연 지역이 아닌 현재 위치의 장소 id */
         const val HERE_SITE_ID = "here"
+
+        /** 근처 야영장 장소 id 앞붙이 (고캠핑 contentId) */
+        const val CAMP_SITE_PREFIX = "camp-"
         const val MAX_UTTERANCE = 100
         const val MAX_HISTORY_TURNS = 6
         const val LISTEN_TIMEOUT_MS = 10_000L

@@ -54,4 +54,13 @@ class ServerJsonTest {
         val here = ServerJson.parseLocated("""{"site":null,"distanceKm":null,"conditions":$cond}""")
         assertNull(here.site)
     }
+
+    @Test
+    fun `근처 야영장 응답 - 조회 불가면 null`() {
+        val ok = ServerJson.parseNearby("""{"available":true,"places":[{"id":"1","name":"가평 오토캠핑장","kind":"자동차야영장","placeType":null,"permission":"ALLOWED","facilities":["화장실"],"distanceKm":1.2,"lat":37.6,"lon":127.49,"address":null}]}""")!!
+        assertEquals("가평 오토캠핑장", ok.single().name)
+        assertNull(ok.single().placeType)
+        assertEquals(1.2, ok.single().distanceKm, 0.001)
+        assertNull(ServerJson.parseNearby("""{"available":false,"places":[]}"""))
+    }
 }

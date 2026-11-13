@@ -5,6 +5,10 @@ import ai.naru.app.camping.CampingUiState
 import ai.naru.app.camping.EndReason
 import ai.naru.app.camping.arrival.Site
 import ai.naru.app.ui.theme.NaruTheme
+import ai.naru.app.ui.theme.NaruIcons
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import ai.naru.app.vehicle.Gear
 import ai.naru.app.camping.intent.IntentRules
 import androidx.compose.foundation.layout.Arrangement
@@ -60,7 +64,15 @@ fun CampingScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(text = "차박 모드 · ${state.stage.label()}", style = MaterialTheme.typography.headlineMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "차박 모드 · ${state.stage.label()}", style = MaterialTheme.typography.headlineMedium)
+                // 밤 전에는 확인 없이 홈으로 (차량에 적용한 것이 없음). 단계 헤더 디자인은 화면별 이슈에서
+                if (state.stage == CampingStage.ARRIVAL_CHECK || state.stage == CampingStage.BEDTIME_PREP) {
+                    IconButton(onClick = actions.onBack) {
+                        Icon(NaruIcons.Close, contentDescription = "그만두고 홈으로", tint = NaruTheme.colors.text)
+                    }
+                }
+            }
             Text(
                 text = "기어 ${state.gear.label()} · 배터리 ${state.batteryPercent?.let { "$it%" } ?: "알 수 없음"}",
                 style = MaterialTheme.typography.bodyLarge,

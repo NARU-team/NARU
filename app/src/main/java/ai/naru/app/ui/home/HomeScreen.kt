@@ -9,6 +9,7 @@ import ai.naru.app.ui.components.NaruCard
 import ai.naru.app.ui.components.NaruChip
 import ai.naru.app.ui.components.NaruPrimaryButton
 import ai.naru.app.ui.components.NaruSecondaryButton
+import ai.naru.app.ui.theme.FigmaFrame
 import ai.naru.app.ui.theme.NaruIcons
 import ai.naru.app.ui.theme.NaruShapes
 import ai.naru.app.ui.theme.NaruSpacing
@@ -24,7 +25,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,52 +67,58 @@ fun HomeScreen(
     onStartCamping: () -> Unit,
     onDismissMessage: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 홈이 보일 때마다 차량 상태 칩을 다시 읽는다 (앱 시작 직후에는 차량 서비스가 준비 전일 수 있음) */
+    onShown: () -> Unit = {},
 ) {
     val colors = NaruTheme.colors
-    Column(
-        modifier = modifier.fillMaxSize().background(colors.background).padding(NaruSpacing.panel),
-        verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
-    ) {
-        Text(text = "나루", style = MaterialTheme.typography.titleMedium, color = colors.text)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(text = "어떻게 쉬어 갈까요?", style = MaterialTheme.typography.headlineMedium, color = colors.text)
-            Text(
-                text = "목적만 고르면 온도, 조명, 소리, 알람을 한 번에 맞춰 드려요.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textTertiary,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(NaruSpacing.small)) {
-            state.batteryPercent?.let { NaruChip("배터리 $it%", icon = NaruIcons.Battery) }
-            state.cabinTempC?.let { NaruChip("실내 ${it.roundToInt()}°C", icon = NaruIcons.Thermometer) }
-            state.outsideTempC?.let { NaruChip("실외 ${it.roundToInt()}°C", icon = NaruIcons.Wind) }
-        }
+    LaunchedEffect(Unit) { onShown() }
+    // 1dp = 1 피그마 단위로 그린다 (Theme.kt FigmaFrame)
+    FigmaFrame(modifier = modifier.fillMaxSize().background(colors.background)) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(NaruSpacing.panel),
+            verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
+        ) {
+            Text(text = "나루", style = MaterialTheme.typography.titleMedium, color = colors.text)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(text = "어떻게 쉬어 갈까요?", style = MaterialTheme.typography.headlineMedium, color = colors.text)
+                Text(
+                    text = "목적만 고르면 온도, 조명, 소리, 알람을 한 번에 맞춰 드려요.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textTertiary,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(NaruSpacing.small)) {
+                state.batteryPercent?.let { NaruChip("배터리 $it%", icon = NaruIcons.Battery) }
+                state.cabinTempC?.let { NaruChip("실내 ${it.roundToInt()}°C", icon = NaruIcons.Thermometer) }
+                state.outsideTempC?.let { NaruChip("실외 ${it.roundToInt()}°C", icon = NaruIcons.Wind) }
+            }
 
-        Notices(state, onDismissMessage)
+            Notices(state, onDismissMessage)
 
-        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
-            ModeCard(
-                illustration = { RestIllustration() },
-                label = "쉼표 모드",
-                title = "잠깐 쉬기",
-                description = "15분에서 45분, 짧은 낮잠과 대기 시간",
-                chip = "준비 중이에요",
-                chipIcon = NaruIcons.Clock,
-                startEnabled = false,
-                onStart = {},
-                modifier = Modifier.weight(1f),
-            )
-            ModeCard(
-                illustration = { NightIllustration() },
-                label = "차박 모드",
-                title = "오늘 여기서 자기",
-                description = "장소 확인부터 일출 기상까지 하룻밤",
-                chip = state.lastRecord?.let { "지난번 ${it.siteName.removeSuffix(" (시연)")}, ${it.targetTempC.formatTemp()}°C" },
-                chipIcon = NaruIcons.Clock,
-                startEnabled = true,
-                onStart = onStartCamping,
-                modifier = Modifier.weight(1f),
-            )
+            Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+                ModeCard(
+                    illustration = { RestIllustration() },
+                    label = "쉼표 모드",
+                    title = "잠깐 쉬기",
+                    description = "15분에서 45분, 짧은 낮잠과 대기 시간",
+                    chip = "준비 중이에요",
+                    chipIcon = NaruIcons.Clock,
+                    startEnabled = false,
+                    onStart = {},
+                    modifier = Modifier.weight(1f),
+                )
+                ModeCard(
+                    illustration = { NightIllustration() },
+                    label = "차박 모드",
+                    title = "오늘 여기서 자기",
+                    description = "장소 확인부터 일출 기상까지 하룻밤",
+                    chip = state.lastRecord?.let { "지난번 ${it.siteName.removeSuffix(" (시연)")}, ${it.targetTempC.formatTemp()}°C" },
+                    chipIcon = NaruIcons.Clock,
+                    startEnabled = true,
+                    onStart = onStartCamping,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -151,9 +158,10 @@ private fun ModeCard(
     val colors = NaruTheme.colors
     NaruCard(modifier = modifier.fillMaxHeight(), contentPadding = PaddingValues(0.dp)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxWidth().height(ILLUSTRATION_HEIGHT)) { illustration() }
+            // 피그마: 그림이 카드 높이의 약 40%. 창 비율이 달라도 비율을 유지한다
+            Box(modifier = Modifier.fillMaxWidth().weight(ILLUSTRATION_WEIGHT)) { illustration() }
             Column(
-                modifier = Modifier.weight(1f).padding(NaruSpacing.card),
+                modifier = Modifier.weight(1f - ILLUSTRATION_WEIGHT).padding(NaruSpacing.card),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(text = label, style = MaterialTheme.typography.labelLarge, color = colors.accent)
@@ -207,7 +215,7 @@ private fun NightIllustration() {
 
 private fun Float.formatTemp(): String = if (this % 1f == 0f) toInt().toString() else "%.1f".format(this)
 
-private val ILLUSTRATION_HEIGHT = 130.dp
+private const val ILLUSTRATION_WEIGHT = 0.36f
 private val PEACH = Color(0xFFFFE6CB)
 private val PEACH_LIGHT = Color(0xFFFFF3E8)
 private val SUN = Color(0xFFFFD2A6)

@@ -75,6 +75,7 @@ private fun NaruApp(app: NaruApplication) {
                     ),
                     onStartCamping = campingViewModel::start,
                     onDismissMessage = campingViewModel::dismissMessage,
+                    onShown = campingViewModel::refreshHomeStatus,
                     modifier = Modifier.weight(1f),
                 )
 

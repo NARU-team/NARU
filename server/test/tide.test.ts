@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nightHighTides, readTideItem } from "../lib/tide.js";
+import { nightHighTides, nightLowTides, readTideItem } from "../lib/tide.js";
 
 const night = { eveningDate: "20261114", morningDate: "20261115" };
 
@@ -14,6 +14,7 @@ test("밤 구간의 고조만 시간순으로 고른다", () => {
     { obsvtrNm: "안흥", predcDt: "2026-11-15 09:30", predcTdlvVl: 120, extrSe: "4" },
   ];
   assert.deepEqual(nightHighTides(items, night), ["19:05", "02:40"]);
+  assert.deepEqual(nightLowTides(items, night), ["21:10"]); // 09:30은 구간(~09:00) 밖
 });
 
 test("극치구분 1·3은 고조, 2·4는 저조", () => {

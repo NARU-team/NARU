@@ -216,6 +216,31 @@ class CampingViewModelTest {
     }
 
     @Test
+    fun `장소를 고르면 조회 시각과 함께 판정을 보여주고, 장소 바꾸기로 다시 고른다`() {
+        val vm = viewModel()
+        vm.start()
+        vm.selectSite(vm.state.value.sites.first { it.placeType == PlaceType.FOREST })
+        assertEquals(now, vm.state.value.arrival?.fetchedAt)
+        assertEquals(null, vm.state.value.loadingSite)
+
+        vm.changeSite()
+        assertEquals(null, vm.state.value.arrival)
+        assertEquals(CampingStage.ARRIVAL_CHECK, vm.state.value.stage)
+    }
+
+    @Test
+    fun `다시 시도는 한 번만 한다`() {
+        val vm = viewModel()
+        vm.start()
+        vm.selectSite(vm.state.value.sites.first())
+        vm.retryConditions()
+        assertEquals(true, vm.state.value.arrival?.retried)
+        now = now.plusMinutes(1)
+        vm.retryConditions() // 무시됨
+        assertEquals(now.minusMinutes(1), vm.state.value.arrival?.fetchedAt)
+    }
+
+    @Test
     fun `밤부터는 그만두기로 끝나지 않는다`() {
         val vm = viewModel()
         vm.goToBedtime()

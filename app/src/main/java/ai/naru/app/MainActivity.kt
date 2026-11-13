@@ -4,6 +4,8 @@ import ai.naru.app.camping.CampingViewModel
 import ai.naru.app.ui.camping.BedtimeActions
 import ai.naru.app.ui.camping.CampingActions
 import ai.naru.app.ui.camping.CampingScreen
+import ai.naru.app.ui.camping.ArrivalActions
+import ai.naru.app.ui.camping.ArrivalScreen
 import ai.naru.app.ui.camping.AssistantActions
 import ai.naru.app.ui.camping.MorningActions
 import ai.naru.app.ui.debug.VehicleDebugPanel
@@ -76,6 +78,24 @@ private fun NaruApp(app: NaruApplication) {
                     onStartCamping = campingViewModel::start,
                     onDismissMessage = campingViewModel::dismissMessage,
                     onShown = campingViewModel::refreshHomeStatus,
+                    modifier = Modifier.weight(1f),
+                )
+
+                // 피그마 v2 도착 안내 (이슈 #35)
+                CampingStage.ARRIVAL_CHECK -> ArrivalScreen(
+                    sites = state.sites,
+                    sitesUnavailable = state.sitesUnavailable,
+                    loadingSite = state.loadingSite,
+                    arrival = state.arrival,
+                    narration = state.narration,
+                    actions = ArrivalActions(
+                        onBack = campingViewModel::cancel,
+                        onSelectSite = campingViewModel::selectSite,
+                        onRetrySites = campingViewModel::loadSites,
+                        onChangeSite = campingViewModel::changeSite,
+                        onRetry = campingViewModel::retryConditions,
+                        onConfirm = campingViewModel::confirmArrival,
+                    ),
                     modifier = Modifier.weight(1f),
                 )
 

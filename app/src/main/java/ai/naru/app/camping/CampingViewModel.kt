@@ -76,6 +76,8 @@ data class CampingUiState(
     val sites: List<Site> = emptyList(),
     /** 도착 단계: 장소 목록을 불러오지 못함 (서버 연결 실패) */
     val sitesUnavailable: Boolean = false,
+    /** 도착 단계: 고른 장소의 오늘 밤 정보를 불러오는 중 */
+    val loadingSite: Site? = null,
     /** 도착 단계: 고른 장소와 그 판정 결과 */
     val arrival: ArrivalState? = null,
     /** 취침 준비 단계: 오늘 밤 설정 */
@@ -170,6 +172,10 @@ data class ArrivalState(
     val site: Site,
     val conditions: SiteConditions,
     val assessment: ArrivalAssessment,
+    /** 조회 시각 ("16:20에 조회했어요") */
+    val fetchedAt: LocalDateTime? = null,
+    /** 조회 실패 후 다시 시도를 썼는지 (한 번만) */
+    val retried: Boolean = false,
 )
 
 /**
@@ -273,11 +279,31 @@ class CampingViewModel(
     fun cancel() = dispatch(CampingEvent.Cancel)
 
     /** 도착 단계에서 장소를 고르면 오늘 밤 정보를 불러와 규칙으로 판정한다. */
-    fun selectSite(site: Site) {
+    fun selectSite(site: Site) = loadConditions(site, retried = false)
+
+    /** 조회 실패일 때 한 번만 다시 불러온다 (피그마: "다시 시도는 한 번만 해요") */
+    fun retryConditions() {
+        val arrival = _state.value.arrival ?: return
+        if (arrival.retried) return
+        loadConditions(arrival.site, retried = true)
+    }
+
+    /** [장소 바꾸기]: 장소 고르기로 돌아간다 */
+    fun changeSite() {
+        if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return
+        stopNarration()
+        _state.update { it.copy(arrival = null, loadingSite = null) }
+    }
+
+    private fun loadConditions(site: Site, retried: Boolean) {
+        _state.update { it.copy(loadingSite = site) }
         viewModelScope.launch {
             val conditions = siteRepository.conditions(site)
             val assessment = ArrivalRules.assess(site, conditions)
-            _state.update { it.copy(arrival = ArrivalState(site, conditions, assessment)) }
+            if (_state.value.stage != CampingStage.ARRIVAL_CHECK || _state.value.loadingSite != site) return@launch
+            _state.update {
+                it.copy(arrival = ArrivalState(site, conditions, assessment, fetchedAt = clock(), retried = retried), loadingSite = null)
+            }
             narrate(NarrationScripts.arrival(site, conditions, assessment))
         }
     }
@@ -800,6 +826,7 @@ class CampingViewModel(
                     message = null,
                     // 새 세션을 시작하면 지난 세션의 판정·설정·백업은 지운다.
                     arrival = if (event is CampingEvent.Start) null else it.arrival,
+                    loadingSite = null,
                     bedtime = if (event is CampingEvent.Start) null else it.bedtime,
                     backup = if (event is CampingEvent.Start) null else it.backup,
                     temperatureApply = if (event is CampingEvent.Start) null else it.temperatureApply,

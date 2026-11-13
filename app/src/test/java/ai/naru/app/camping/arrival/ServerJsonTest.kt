@@ -20,14 +20,15 @@ class ServerJsonTest {
     @Test
     fun `오늘 밤 정보를 읽는다`() {
         val json = """
-            {"weather":{"minTempC":4.5,"precipitation":"RAIN","strongWind":false},
-             "highTides":["19:05","02:40"],"sunrise":"07:10",
+            {"weather":{"minTempC":4.5,"precipitation":"RAIN","strongWind":false,"maxWindMs":3.2},
+             "highTides":["19:05","02:40"],"lowTides":["21:10"],"sunrise":"07:10",
              "morningWeather":{"tempC":6,"sky":"CLOUDY"}}
         """.trimIndent()
         assertEquals(
             SiteConditions(
-                weather = NightWeather(minTempC = 4.5f, precipitation = Precipitation.RAIN, strongWind = false),
+                weather = NightWeather(minTempC = 4.5f, precipitation = Precipitation.RAIN, strongWind = false, maxWindMs = 3.2f),
                 highTides = listOf(LocalTime.of(19, 5), LocalTime.of(2, 40)),
+                lowTides = listOf(LocalTime.of(21, 10)),
                 sunrise = LocalTime.of(7, 10),
                 morningWeather = MorningWeather(tempC = 6f, sky = Sky.CLOUDY),
             ),

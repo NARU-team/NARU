@@ -44,22 +44,23 @@ class DemoSiteRepository : SiteRepository {
     private val demoConditions = mapOf(
         // 정보 확인: 허용, 영상, 맑음
         "demo-forest" to SiteConditions(
-            weather = NightWeather(minTempC = 6f, precipitation = Precipitation.NONE, strongWind = false),
+            weather = NightWeather(minTempC = 6f, precipitation = Precipitation.NONE, strongWind = false, maxWindMs = 2f),
             highTides = null,
             sunrise = LocalTime.of(7, 21),
             morningWeather = MorningWeather(tempC = 8f, sky = Sky.CLEAR),
         ),
         // 현장 확인 필요: 허용 여부 불명확, 영하
         "demo-lake" to SiteConditions(
-            weather = NightWeather(minTempC = -2f, precipitation = Precipitation.NONE, strongWind = false),
+            weather = NightWeather(minTempC = -2f, precipitation = Precipitation.NONE, strongWind = false, maxWindMs = 4f),
             highTides = null,
             sunrise = LocalTime.of(7, 18),
             morningWeather = MorningWeather(tempC = 0f, sky = Sky.CLOUDY),
         ),
         // 주의·이동 권장: 밤사이 만조
         "demo-beach" to SiteConditions(
-            weather = NightWeather(minTempC = 9f, precipitation = Precipitation.NONE, strongWind = false),
+            weather = NightWeather(minTempC = 9f, precipitation = Precipitation.NONE, strongWind = false, maxWindMs = 5f),
             highTides = listOf(LocalTime.of(2, 40), LocalTime.of(14, 55)),
+            lowTides = listOf(LocalTime.of(8, 31)),
             sunrise = LocalTime.of(7, 15),
             morningWeather = MorningWeather(tempC = 11f, sky = Sky.OVERCAST),
         ),

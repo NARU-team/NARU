@@ -69,7 +69,7 @@ object NarrationScripts {
                 }
             }
         }
-        val basis = if (settings.wakeBasis == WakeBasis.SUNRISE) "일출 시각인 " else ""
+        val basis = if (settings.wakeBasis == WakeBasis.SUNRISE) "해 뜨기 조금 전인 " else ""
         val forecastText = forecast?.let {
             val warning = if (it.belowLimit) "배터리 하한보다 낮아질 수 있으니 설정 온도를 조금 낮추는 걸 권해요. " else ""
             "내일 아침 배터리는 ${it.lowPercent}에서 ${it.highPercent}퍼센트 정도로 예상돼요. $warning"

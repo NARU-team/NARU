@@ -1,5 +1,6 @@
 package ai.naru.app.camping.bedtime
 
+import java.time.LocalTime
 import kotlin.math.roundToInt
 
 /**
@@ -20,6 +21,12 @@ object BedtimeThresholds {
 
     /** 차량 온도 조절 단위 (에뮬레이터 실측: 0.5°C) */
     const val STEP_C = 0.5f
+
+    /** "일출에 맞추기": 해 뜨는 걸 볼 수 있게 일출 몇 분 전에 깨운다 (피그마 v2 "해 뜨기 12분 전", 이슈 #37) */
+    const val SUNRISE_LEAD_MINUTES = 12L
+
+    /** 온도별 예상 배터리에서 고른 온도 위아래로 보여줄 간격 */
+    const val FORECAST_ROW_STEP_C = 1f
 }
 
 /** 추천 온도와 그렇게 추천한 이유. */
@@ -79,6 +86,18 @@ object BedtimeRules {
         val next = snapToStep(current + steps * BedtimeThresholds.STEP_C)
         return vehicleRange?.let { next.coerceIn(it) } ?: next
     }
+
+    /** 슬라이더로 고른 온도를 0.5°C 단위로 맞추고 차량 범위 안으로 자른다 */
+    fun setTemperature(celsius: Float, vehicleRange: ClosedFloatingPointRange<Float>?): Float = adjustTemperature(celsius, 0, vehicleRange)
+
+    /** "일출에 맞추기"의 기상 시각 */
+    fun sunriseWakeTime(sunrise: LocalTime): LocalTime = sunrise.minusMinutes(BedtimeThresholds.SUNRISE_LEAD_MINUTES)
+
+    /** 온도별 예상 배터리 줄: 고른 온도 −1, 고른 온도, +1 (차량 범위 밖은 빼고, 겹치면 하나만) */
+    fun forecastTemps(selected: Float, vehicleRange: ClosedFloatingPointRange<Float>?): List<Float> =
+        listOf(selected - BedtimeThresholds.FORECAST_ROW_STEP_C, selected, selected + BedtimeThresholds.FORECAST_ROW_STEP_C)
+            .filter { vehicleRange == null || it in vehicleRange }
+            .distinct()
 
     private fun baseByMinTemp(minTempC: Float): Float = when {
         minTempC <= 0f -> 23f

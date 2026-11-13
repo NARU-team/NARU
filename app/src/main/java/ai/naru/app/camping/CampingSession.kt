@@ -46,6 +46,9 @@ sealed interface CampingEvent {
      */
     data object Cancel : CampingEvent
 
+    /** 취침 준비에서 ← : 도착 안내로 돌아간다 (피그마 v2 단계 헤더, 이슈 #37). 차량에 적용한 것이 없다. */
+    data object BackToArrival : CampingEvent
+
     /**
      * 아침 단계에서 차량 설정 복구가 끝났다.
      * @property endReason 세션을 끝내는 이유. 사용자가 마치면 COMPLETED, 기어 이탈로 복구했으면 GEAR_LEFT_PARK.
@@ -128,6 +131,7 @@ object CampingSessionRules {
 
             CampingStage.BEDTIME_PREP -> when (event) {
                 CampingEvent.StartNight -> CampingTransition.MoveTo(CampingStage.NIGHT)
+                CampingEvent.BackToArrival -> CampingTransition.MoveTo(CampingStage.ARRIVAL_CHECK)
                 CampingEvent.Cancel -> CampingTransition.MoveTo(CampingStage.IDLE, EndReason.CANCELED)
                 else -> reject(stage, event)
             }

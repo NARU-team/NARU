@@ -117,6 +117,8 @@ data class CampingUiState(
     val morningReason: EndReason? = null,
     /** 발화 해석 (취침 준비·밤 단계) */
     val assistant: AssistantState = AssistantState(),
+    /** 취침 준비 단계 안의 화면 */
+    val bedtimeStep: BedtimeStep = BedtimeStep.SETTINGS,
 )
 
 /**
@@ -166,7 +168,14 @@ data class BedtimeState(
     val preparing: Boolean = false,
     /** 아침 예상 잔량. 비슷한 기록이 부족하면 null */
     val forecast: MorningForecast? = null,
+    /** 온도별 아침 예상 배터리 (고른 온도 −1/0/+1). 기록이 부족한 온도는 forecast가 null */
+    val forecastRows: List<TempForecast> = emptyList(),
 )
+
+data class TempForecast(val celsius: Float, val forecast: MorningForecast?)
+
+/** 취침 준비 단계 안의 화면: 취침 준비 2/3 → 밤 분위기 3/3 (피그마 v2, 이슈 #37) */
+enum class BedtimeStep { SETTINGS, THEME }
 
 data class ArrivalState(
     val site: Site,
@@ -344,9 +353,42 @@ class CampingViewModel(
         bedtime.copy(settings = bedtime.settings.copy(wakeAt = next, wakeBasis = WakeBasis.MANUAL))
     }
 
-    fun wakeAtSunrise() = updateBedtime { bedtime ->
-        val sunrise = bedtime.sunrise ?: return@updateBedtime bedtime
-        bedtime.copy(settings = bedtime.settings.copy(wakeAt = sunrise, wakeBasis = WakeBasis.SUNRISE))
+    fun wakeAtSunrise() = setSunriseWake(true)
+
+    /** 온도 슬라이더 */
+    fun setTemperature(celsius: Float) = updateBedtime { bedtime ->
+        bedtime.copy(settings = bedtime.settings.copy(targetTempC = BedtimeRules.setTemperature(celsius, bedtime.vehicleTempRange)))
+    }
+
+    /** [일출에 맞추기] 토글: 켜면 일출 12분 전, 끄면 지금 시각을 직접 설정으로 둔다 */
+    fun setSunriseWake(on: Boolean) = updateBedtime { bedtime ->
+        val sunrise = bedtime.sunrise
+        if (on && sunrise != null) {
+            bedtime.copy(settings = bedtime.settings.copy(wakeAt = BedtimeRules.sunriseWakeTime(sunrise), wakeBasis = WakeBasis.SUNRISE))
+        } else {
+            bedtime.copy(settings = bedtime.settings.copy(wakeBasis = WakeBasis.MANUAL))
+        }
+    }
+
+    /** [직접 설정] 시각 고르기 팝업 */
+    fun setWakeTime(time: LocalTime) = updateBedtime { bedtime ->
+        bedtime.copy(settings = bedtime.settings.copy(wakeAt = time, wakeBasis = WakeBasis.MANUAL))
+    }
+
+    /** [밤 분위기 고르기] → 밤 분위기 3/3 */
+    fun goToThemeStep() {
+        if (_state.value.stage == CampingStage.BEDTIME_PREP && _state.value.bedtime != null) _state.update { it.copy(bedtimeStep = BedtimeStep.THEME) }
+    }
+
+    /** 단계 헤더 ← : 밤 분위기 → 취침 준비, 취침 준비 → 도착 안내 */
+    fun back() {
+        val state = _state.value
+        when {
+            state.stage == CampingStage.BEDTIME_PREP && state.bedtimeStep == BedtimeStep.THEME ->
+                _state.update { it.copy(bedtimeStep = BedtimeStep.SETTINGS) }
+            state.stage == CampingStage.BEDTIME_PREP -> dispatch(CampingEvent.BackToArrival)
+            state.stage == CampingStage.ARRIVAL_CHECK -> cancel()
+        }
     }
 
     fun selectTheme(theme: PlaceType) = updateBedtime { bedtime ->
@@ -400,7 +442,20 @@ class CampingViewModel(
             now = now,
             wakeAt = NightRules.nextWakeDateTime(now, bedtime.settings.wakeAt),
         )
-        return bedtime.copy(forecast = forecast)
+        val rows = BedtimeRules.forecastTemps(bedtime.settings.targetTempC, bedtime.vehicleTempRange).map { temp ->
+            TempForecast(
+                temp,
+                BatteryForecast.forecast(
+                    records = state.records,
+                    currentBattery = state.batteryPercent,
+                    targetTempC = temp,
+                    minTempC = state.arrival?.conditions?.weather?.minTempC,
+                    now = now,
+                    wakeAt = NightRules.nextWakeDateTime(now, bedtime.settings.wakeAt),
+                ),
+            )
+        }
+        return bedtime.copy(forecast = forecast, forecastRows = rows)
     }
 
     // --- 기록 ---
@@ -836,6 +891,8 @@ class CampingViewModel(
                     morning = if (event is CampingEvent.Start) null else it.morning,
                     restoring = if (event is CampingEvent.Start) false else it.restoring,
                     restore = if (event is CampingEvent.Start) null else it.restore,
+                    // 단계가 바뀌면 취침 준비 안의 화면은 처음(2/3)부터
+                    bedtimeStep = BedtimeStep.SETTINGS,
                     narration = if (event is CampingEvent.Start) null else it.narration,
                     nightStartedAt = if (event is CampingEvent.Start) null else it.nightStartedAt,
                     nightEndedAt = if (event is CampingEvent.Start) null else it.nightEndedAt,

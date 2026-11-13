@@ -70,6 +70,9 @@ class ArrivalPresenterTest {
         val p = present(beach.copy(permission = CampingPermission.PROHIBITED), SiteConditions(null, null))
         assertEquals(ArrivalStatus.MOVE, p.state)
         assertEquals("차박 금지 장소예요", p.cards[2].value)
+        // 일부 조회가 실패했으니 다시 시도는 준다 (한 번만)
+        assertEquals(true, p.buttons.showRetry)
+        assertEquals(false, present(beach.copy(permission = CampingPermission.PROHIBITED), SiteConditions(null, null), retried = true).buttons.showRetry)
     }
 
     @Test

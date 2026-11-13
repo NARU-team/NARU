@@ -103,7 +103,8 @@ object ArrivalPresenter {
         val buttons = when (state) {
             ArrivalStatus.INFO -> ArrivalButtons("취침 준비하기", confirmIsPrimary = true, showRetry = false)
             ArrivalStatus.CHECK -> ArrivalButtons("현장 확인 후 계속", confirmIsPrimary = true, showRetry = false)
-            ArrivalStatus.MOVE -> ArrivalButtons("그래도 준비하기", confirmIsPrimary = false, showRetry = false)
+            // 이동 권장이어도 일부 조회가 실패했으면 다시 시도를 한 번 준다
+            ArrivalStatus.MOVE -> ArrivalButtons("그래도 준비하기", confirmIsPrimary = false, showRetry = (weatherFailed || tideFailed) && !retried)
             ArrivalStatus.LOOKUP_FAILED -> ArrivalButtons("취침 준비하기", confirmIsPrimary = retried, showRetry = !retried)
         }
 

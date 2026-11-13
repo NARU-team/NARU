@@ -4,6 +4,7 @@ import ai.naru.app.camping.CampingViewModel
 import ai.naru.app.ui.camping.BedtimeActions
 import ai.naru.app.ui.camping.CampingActions
 import ai.naru.app.ui.camping.CampingScreen
+import ai.naru.app.ui.camping.MorningActions
 import ai.naru.app.ui.debug.VehicleDebugPanel
 import ai.naru.app.ui.home.ModeSelectScreen
 import ai.naru.app.ui.theme.NaruTheme
@@ -45,7 +46,7 @@ private enum class Screen { MODE_SELECT, CAMPING }
 private fun NaruApp(app: NaruApplication) {
     var screen by rememberSaveable { mutableStateOf(Screen.MODE_SELECT) }
     val campingViewModel: CampingViewModel = viewModel(
-        factory = viewModelFactory { initializer { CampingViewModel(app.vehicleGateway, app.siteRepository, app.nightSound) } },
+        factory = viewModelFactory { initializer { CampingViewModel(app.vehicleGateway, app.siteRepository, app.nightSound, app.morningAlarm) } },
     )
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -72,7 +73,10 @@ private fun NaruApp(app: NaruApplication) {
                                 onStartNight = campingViewModel::startNight,
                             ),
                             onToggleSound = campingViewModel::toggleSound,
-                            onFinishRestore = campingViewModel::finishRestore,
+                            morning = MorningActions(
+                                onWakeUp = campingViewModel::wakeUp,
+                                onFinish = campingViewModel::finishSession,
+                            ),
                             onDismissMessage = campingViewModel::dismissMessage,
                             onBack = { screen = Screen.MODE_SELECT },
                         ),

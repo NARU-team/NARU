@@ -2,6 +2,8 @@ package ai.naru.app
 
 import ai.naru.app.camping.arrival.DemoSiteRepository
 import ai.naru.app.camping.arrival.SiteRepository
+import ai.naru.app.camping.morning.AndroidMorningAlarm
+import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.night.AndroidNightSound
 import ai.naru.app.camping.night.NightSound
 import ai.naru.app.vehicle.FakeVehicleGateway
@@ -27,4 +29,6 @@ class NaruApplication : Application() {
     val siteRepository: SiteRepository by lazy { DemoSiteRepository() }
 
     val nightSound: NightSound by lazy { AndroidNightSound(this) }
+
+    val morningAlarm: MorningAlarm by lazy { AndroidMorningAlarm(this) }
 }

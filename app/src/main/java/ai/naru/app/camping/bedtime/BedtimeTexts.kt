@@ -8,10 +8,20 @@ import ai.naru.app.camping.record.MorningForecast
  */
 object BedtimeTexts {
 
-    fun suggestion(minTempC: Float?, recommendation: TemperatureRecommendation, forecast: MorningForecast?): String {
+    fun suggestion(
+        minTempC: Float?,
+        recommendation: TemperatureRecommendation,
+        forecast: MorningForecast?,
+        feedback: FeedbackHint? = null,
+    ): String {
         val temp = recommendation.celsius.formatTemp()
         val first = when {
             minTempC == null -> "날씨 정보가 없어 ${temp}°C를 기본으로 추천해요."
+            feedback != null && RecommendationNote.FEEDBACK_APPLIED in recommendation.notes -> when (feedback.feedback) {
+                TempFeedback.HOT -> "지난 비슷한 밤에 ${feedback.targetTempC.formatTemp()}°C가 더웠다고 하셔서 ${temp}°C를 추천해요."
+                TempFeedback.COLD -> "지난 비슷한 밤에 ${feedback.targetTempC.formatTemp()}°C가 추웠다고 하셔서 ${temp}°C를 추천해요."
+                TempFeedback.GOOD -> "지난 비슷한 밤에 ${feedback.targetTempC.formatTemp()}°C가 딱 좋았다고 하셔서 ${temp}°C를 추천해요."
+            }
             RecommendationNote.LOW_BATTERY_SAVING in recommendation.notes ->
                 "밤 최저 ${minTempC.formatTemp()}°C지만 배터리를 아끼려고 ${temp}°C를 추천해요."
             else -> "밤 최저 ${minTempC.formatTemp()}°C라 ${temp}°C를 추천해요."

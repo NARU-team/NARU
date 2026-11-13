@@ -39,6 +39,10 @@ export interface NightWeather {
 export interface MorningWeather {
   tempC: number;
   sky: Sky;
+  /** 아침 날짜의 낮 최고기온 (TMX, 없으면 그날 TMP 최댓값). 모르면 null (아침 브리핑, 이슈 #41) */
+  dayMaxTempC: number | null;
+  /** 기상 시각 무렵 풍속(m/s). 모르면 null */
+  windMs: number | null;
 }
 
 /** 단기예보 발표 시각(HHmm). 발표 후 약 10분 뒤부터 조회된다. */
@@ -114,7 +118,19 @@ export function summarizeMorning(items: ForecastItem[], night: NightWindow, wake
 
   const temp = Number(at("TMP"));
   if (!Number.isFinite(temp) || at("TMP") === undefined) return null;
-  return { tempC: temp, sky: skyOf(at("SKY"), at("PTY")) };
+
+  const onMorningDate = items.filter((i) => i.fcstDate === night.morningDate);
+  const tmx = onMorningDate.find((i) => i.category === "TMX")?.fcstValue;
+  const dayTemps = onMorningDate.filter((i) => i.category === "TMP").map((i) => Number(i.fcstValue)).filter(Number.isFinite);
+  const dayMaxTempC = tmx !== undefined && Number.isFinite(Number(tmx)) ? Number(tmx) : dayTemps.length > 0 ? Math.max(...dayTemps) : null;
+  const wind = Number(at("WSD"));
+
+  return {
+    tempC: temp,
+    sky: skyOf(at("SKY"), at("PTY")),
+    dayMaxTempC,
+    windMs: at("WSD") !== undefined && Number.isFinite(wind) ? wind : null,
+  };
 }
 
 /**

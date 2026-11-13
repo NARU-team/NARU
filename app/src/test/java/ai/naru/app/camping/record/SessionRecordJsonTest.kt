@@ -31,11 +31,12 @@ class SessionRecordJsonTest {
         endReason = EndReason.WAKE_TIME,
         predictedLowPercent = 66,
         predictedHighPercent = 72,
+        feedback = ai.naru.app.camping.bedtime.TempFeedback.HOT,
     )
 
     @Test
     fun `저장하고 다시 읽으면 같은 기록`() {
-        val unknown = record.copy(id = "b", grade = null, minTempC = null, nightEndBattery = null, predictedLowPercent = null, predictedHighPercent = null)
+        val unknown = record.copy(id = "b", grade = null, minTempC = null, nightEndBattery = null, predictedLowPercent = null, predictedHighPercent = null, feedback = null)
         assertEquals(listOf(record, unknown), SessionRecordJson.decode(SessionRecordJson.encode(listOf(record, unknown))))
     }
 

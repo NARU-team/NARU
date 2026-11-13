@@ -4,6 +4,7 @@ import ai.naru.app.camping.AssistantState
 import ai.naru.app.camping.BedtimeState
 import ai.naru.app.camping.TempForecast
 import ai.naru.app.camping.bedtime.BedtimeTexts
+import ai.naru.app.camping.bedtime.FeedbackRules
 import ai.naru.app.camping.bedtime.WakeBasis
 import ai.naru.app.camping.intent.TurnRole
 import ai.naru.app.camping.night.NightThresholds
@@ -130,7 +131,7 @@ private fun SuggestionPanel(
         assistant.busy -> "생각하는 중…"
         assistant.notice != null -> assistant.notice
         lastReply != null -> lastReply
-        else -> BedtimeTexts.suggestion(minTempC, bedtime.recommendation, bedtime.forecast)
+        else -> BedtimeTexts.suggestion(minTempC, bedtime.recommendation, bedtime.forecast, bedtime.feedbackHint)
     }
     Column(
         modifier = Modifier.fillMaxWidth().clip(NaruShapes.card).background(colors.accentSurface).padding(NaruSpacing.card),
@@ -157,6 +158,7 @@ private fun SuggestionPanel(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             minTempC?.let { NaruChip("실외 최저 ${it.roundToInt()}°C", icon = NaruIcons.Moon) }
+            bedtime.feedbackHint?.let { NaruChip(FeedbackRules.chipText(it), icon = NaruIcons.Check) }
             batteryPercent?.let { NaruChip("배터리 $it%", icon = NaruIcons.Battery) }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -58,7 +58,8 @@ class IntentRulesTest {
     @Test
     fun `일출에 깨우기와 기상 시각`() {
         assertEquals(
-            listOf(ProposedChange.WakeTime(LocalTime.of(7, 0), LocalTime.of(7, 10), sunrise = true)),
+            // 일출 07:10의 12분 전 (피그마 v2 "해 뜨기 12분 전")
+            listOf(ProposedChange.WakeTime(LocalTime.of(7, 0), LocalTime.of(6, 58), sunrise = true)),
             IntentRules.resolve(listOf(IntentProposal(IntentAction.WAKE_AT_SUNRISE)), bedtime),
         )
         assertEquals(

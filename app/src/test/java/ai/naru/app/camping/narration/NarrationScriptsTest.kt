@@ -54,7 +54,7 @@ class NarrationScriptsTest {
         val request = NarrationScripts.bedtime(settings, LocalTime.of(7, 10), 80)
         assertEquals("22.5", request.facts["설정온도C"])
         assertEquals("일출", request.facts["기상기준"])
-        assertEquals("오늘 밤은 숲 테마로 쉬어요. 설정 온도는 22.5도이고, 일출 시각인 07:10에 깨워 드릴게요. 편히 쉬세요.", request.template)
+        assertEquals("오늘 밤은 숲 테마로 쉬어요. 설정 온도는 22.5도이고, 해 뜨기 조금 전인 07:10에 깨워 드릴게요. 편히 쉬세요.", request.template)
     }
 
     @Test

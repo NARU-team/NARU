@@ -6,7 +6,12 @@ import ai.naru.app.ui.camping.CampingActions
 import ai.naru.app.ui.camping.CampingScreen
 import ai.naru.app.ui.camping.ArrivalActions
 import ai.naru.app.ui.camping.ArrivalScreen
+import ai.naru.app.camping.BedtimeStep
 import ai.naru.app.ui.camping.AssistantActions
+import ai.naru.app.ui.camping.BedtimeScreen
+import ai.naru.app.ui.camping.BedtimeScreenActions
+import ai.naru.app.ui.camping.ThemeScreen
+import ai.naru.app.ui.camping.ThemeScreenActions
 import ai.naru.app.ui.camping.MorningActions
 import ai.naru.app.ui.debug.VehicleDebugPanel
 import ai.naru.app.camping.CampingStage
@@ -89,7 +94,7 @@ private fun NaruApp(app: NaruApplication) {
                     arrival = state.arrival,
                     narration = state.narration,
                     actions = ArrivalActions(
-                        onBack = campingViewModel::cancel,
+                        onBack = campingViewModel::back,
                         onSelectSite = campingViewModel::selectSite,
                         onRetrySites = campingViewModel::loadSites,
                         onChangeSite = campingViewModel::changeSite,
@@ -98,6 +103,45 @@ private fun NaruApp(app: NaruApplication) {
                     ),
                     modifier = Modifier.weight(1f),
                 )
+
+                // 피그마 v2 취침 준비 2/3 → 밤 분위기 3/3 (이슈 #37)
+                CampingStage.BEDTIME_PREP -> if (state.bedtimeStep == BedtimeStep.SETTINGS) {
+                    BedtimeScreen(
+                        bedtime = state.bedtime,
+                        minTempC = state.arrival?.conditions?.weather?.minTempC,
+                        batteryPercent = state.batteryPercent,
+                        cabinTempC = state.cabinTempC,
+                        assistant = state.assistant,
+                        voiceInputAvailable = true,
+                        actions = BedtimeScreenActions(
+                            onBack = campingViewModel::back,
+                            onClose = campingViewModel::cancel,
+                            onSetTemperature = campingViewModel::setTemperature,
+                            onSetSunriseWake = campingViewModel::setSunriseWake,
+                            onSetWakeTime = campingViewModel::setWakeTime,
+                            onNext = campingViewModel::goToThemeStep,
+                            assistant = AssistantActions(
+                                onAsk = campingViewModel::ask,
+                                onToggleListening = campingViewModel::toggleListening,
+                                onApprove = campingViewModel::approveChanges,
+                                onReject = campingViewModel::rejectChanges,
+                            ),
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    ThemeScreen(
+                        bedtime = state.bedtime,
+                        recommended = state.arrival?.site?.placeType,
+                        actions = ThemeScreenActions(
+                            onBack = campingViewModel::back,
+                            onClose = campingViewModel::cancel,
+                            onSelectTheme = campingViewModel::selectTheme,
+                            onStartNight = campingViewModel::startNight,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
 
                 else -> {
                     CampingScreen(

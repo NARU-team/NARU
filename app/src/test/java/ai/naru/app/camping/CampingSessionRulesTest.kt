@@ -126,6 +126,14 @@ class CampingSessionRulesTest {
     }
 
     @Test
+    fun `취침 준비에서만 도착 안내로 돌아갈 수 있다`() {
+        assertEquals(CampingTransition.MoveTo(CampingStage.ARRIVAL_CHECK), next(CampingStage.BEDTIME_PREP, CampingEvent.BackToArrival))
+        for (stage in listOf(CampingStage.IDLE, CampingStage.ARRIVAL_CHECK, CampingStage.NIGHT, CampingStage.MORNING)) {
+            assertTrue(next(stage, CampingEvent.BackToArrival) is CampingTransition.Rejected)
+        }
+    }
+
+    @Test
     fun `밤 전에는 그만둘 수 있고, 밤부터는 그만두기로 끝내지 않는다`() {
         for (stage in listOf(CampingStage.ARRIVAL_CHECK, CampingStage.BEDTIME_PREP)) {
             assertEquals(CampingTransition.MoveTo(CampingStage.IDLE, EndReason.CANCELED), next(stage, CampingEvent.Cancel))

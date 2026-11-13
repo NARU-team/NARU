@@ -6,6 +6,7 @@ import ai.naru.app.camping.bedtime.ControlResult
 import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.morning.RestoreReport
 import ai.naru.app.camping.intent.IntentAction
+import ai.naru.app.camping.BedtimeStep
 import ai.naru.app.camping.intent.IntentContext
 import ai.naru.app.camping.intent.IntentProposal
 import ai.naru.app.camping.intent.IntentReply
@@ -238,6 +239,48 @@ class CampingViewModelTest {
         now = now.plusMinutes(1)
         vm.retryConditions() // 무시됨
         assertEquals(now.minusMinutes(1), vm.state.value.arrival?.fetchedAt)
+    }
+
+    @Test
+    fun `취침 준비 2-3 에서 밤 분위기 3-3 으로 가고, 뒤로가기로 한 단계씩 돌아간다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        assertEquals(BedtimeStep.SETTINGS, vm.state.value.bedtimeStep)
+        vm.goToThemeStep()
+        assertEquals(BedtimeStep.THEME, vm.state.value.bedtimeStep)
+        vm.back()
+        assertEquals(BedtimeStep.SETTINGS, vm.state.value.bedtimeStep)
+        vm.back()
+        assertEquals(CampingStage.ARRIVAL_CHECK, vm.state.value.stage)
+        // 도착 판정은 그대로 남아 있다
+        assertEquals(PlaceType.FOREST, vm.state.value.arrival?.site?.placeType)
+    }
+
+    @Test
+    fun `슬라이더와 일출에 맞추기, 직접 설정`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.setTemperature(21.3f)
+        assertEquals(21.5f, vm.state.value.bedtime?.settings?.targetTempC)
+
+        val sunrise = vm.state.value.bedtime!!.sunrise!!
+        vm.setSunriseWake(true)
+        assertEquals(sunrise.minusMinutes(12), vm.state.value.bedtime?.settings?.wakeAt)
+        assertEquals(ai.naru.app.camping.bedtime.WakeBasis.SUNRISE, vm.state.value.bedtime?.settings?.wakeBasis)
+
+        vm.setWakeTime(LocalTime.of(6, 30))
+        assertEquals(LocalTime.of(6, 30), vm.state.value.bedtime?.settings?.wakeAt)
+        assertEquals(ai.naru.app.camping.bedtime.WakeBasis.MANUAL, vm.state.value.bedtime?.settings?.wakeBasis)
+    }
+
+    @Test
+    fun `온도별 예상 배터리는 고른 온도 위아래 1도, 기록이 없으면 비어 있다`() {
+        val vm = viewModel()
+        vm.goToBedtime() // 24°C
+        assertEquals(listOf(23f, 24f, 25f), vm.state.value.bedtime?.forecastRows?.map { it.celsius })
+        assertEquals(true, vm.state.value.bedtime?.forecastRows?.all { it.forecast == null })
+        vm.addSampleRecords()
+        assertEquals(true, vm.state.value.bedtime?.forecastRows?.any { it.forecast != null })
     }
 
     @Test

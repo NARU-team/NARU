@@ -74,7 +74,8 @@ object IntentRules {
         IntentAction.WAKE_AT_SUNRISE -> {
             val from = c.wakeAt
             val sunrise = c.sunrise
-            if (from != null && sunrise != null && sunrise != from) ProposedChange.WakeTime(from, sunrise, sunrise = true) else null
+            val to = sunrise?.let { BedtimeRules.sunriseWakeTime(it) }
+            if (from != null && to != null && to != from) ProposedChange.WakeTime(from, to, sunrise = true) else null
         }
         IntentAction.SET_THEME -> {
             val from = c.theme

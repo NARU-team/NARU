@@ -5,6 +5,11 @@ import ai.naru.app.camping.arrival.ServerSiteRepository
 import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.camping.morning.AndroidMorningAlarm
 import ai.naru.app.camping.morning.MorningAlarm
+import ai.naru.app.camping.narration.NarrationRepository
+import ai.naru.app.camping.narration.PleosVoiceGuide
+import ai.naru.app.camping.narration.ServerNarrationRepository
+import ai.naru.app.camping.narration.TemplateOnlyNarration
+import ai.naru.app.camping.narration.VoiceGuide
 import ai.naru.app.camping.night.AndroidNightSound
 import ai.naru.app.camping.night.NightSound
 import ai.naru.app.vehicle.FakeVehicleGateway
@@ -34,4 +39,11 @@ class NaruApplication : Application() {
     val nightSound: NightSound by lazy { AndroidNightSound(this) }
 
     val morningAlarm: MorningAlarm by lazy { AndroidMorningAlarm(this) }
+
+    /** 서버가 있으면 AI 멘트(서버에서 LLM 호출), 없으면 준비된 문장만 쓴다. */
+    val narrationRepository: NarrationRepository by lazy {
+        if (BuildConfig.SERVER_URL.isNotBlank()) ServerNarrationRepository(BuildConfig.SERVER_URL) else TemplateOnlyNarration
+    }
+
+    val voiceGuide: VoiceGuide by lazy { PleosVoiceGuide(this) }
 }

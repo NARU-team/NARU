@@ -1,5 +1,6 @@
 package ai.naru.app.camping.arrival
 
+import ai.naru.app.location.LatLng
 import java.time.LocalTime
 
 /**
@@ -9,7 +10,15 @@ interface SiteRepository {
     suspend fun sites(): List<Site>
 
     suspend fun conditions(site: Site): SiteConditions
+
+    /**
+     * 차량 위치로 오늘 밤 정보 (이슈 #44). 시연 지역 근처면 site가 그 장소, 아니면 null(현재 위치).
+     * 위치 조회를 지원하지 않으면 null → 시연 지역 고르기로 대체.
+     */
+    suspend fun conditionsAt(location: LatLng): LocatedConditions? = null
 }
+
+data class LocatedConditions(val site: Site?, val conditions: SiteConditions)
 
 /**
  * 시연 지역 내장 데이터. **실제 장소·날씨가 아닌 샘플 값**이다.

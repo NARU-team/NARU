@@ -19,6 +19,11 @@ import ai.naru.app.ui.camping.ThemeScreenActions
 import ai.naru.app.ui.camping.MorningActions
 import ai.naru.app.ui.debug.VehicleDebugPanel
 import ai.naru.app.camping.CampingStage
+import ai.naru.app.location.LocationGateway
+import ai.naru.app.ui.home.OnboardingScreen
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.remember
 import ai.naru.app.ui.home.HomeScreen
 import ai.naru.app.ui.home.HomeState
 import ai.naru.app.ui.theme.NaruTheme
@@ -66,14 +71,52 @@ private fun NaruApp(app: NaruApplication) {
                 app.recordStore,
                 app.intentRepository,
                 app.speechInput,
+                app.locationGateway,
             ) } },
     )
+
+    // 처음 시작하기(권한 동의)와 위치 권한 요청 (이슈 #44)
+    var onboardingDone by remember { mutableStateOf(app.onboardingDone) }
+    var locationGranted by remember { mutableStateOf(app.locationGateway.hasPermission()) }
+    var locateAfterGrant by remember { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        locationGranted = granted
+        app.onboardingDone = true
+        onboardingDone = true
+        if (granted && locateAfterGrant) campingViewModel.locate()
+        locateAfterGrant = false
+    }
+    val requestLocation = { locateAfter: Boolean ->
+        if (app.locationGateway.hasPermission()) {
+            if (locateAfter) campingViewModel.locate()
+        } else {
+            locateAfterGrant = locateAfter
+            permissionLauncher.launch(LocationGateway.PERMISSION)
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column {
             // 세션이 없으면(대기) 홈, 있으면 차박 화면 (홈의 [시작]이 바로 차박을 시작한다, 이슈 #33)
             val state by campingViewModel.state.collectAsStateWithLifecycle()
-            when (state.stage) {
+            when {
+                !onboardingDone -> OnboardingScreen(
+                    locationGranted = locationGranted,
+                    onLater = {
+                        app.onboardingDone = true
+                        onboardingDone = true
+                    },
+                    onContinue = {
+                        if (locationGranted) {
+                            app.onboardingDone = true
+                            onboardingDone = true
+                        } else {
+                            requestLocation(false)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                else -> when (state.stage) {
                 CampingStage.IDLE -> HomeScreen(
                     state = HomeState(
                         batteryPercent = state.batteryPercent,
@@ -97,7 +140,11 @@ private fun NaruApp(app: NaruApplication) {
                     loadingSite = state.loadingSite,
                     arrival = state.arrival,
                     narration = state.narration,
+                    locating = state.locating,
+                    askPlaceType = state.hereConditions != null,
                     actions = ArrivalActions(
+                        onLocate = { requestLocation(true) },
+                        onChoosePlaceType = campingViewModel::choosePlaceType,
                         onBack = campingViewModel::back,
                         onSelectSite = campingViewModel::selectSite,
                         onRetrySites = campingViewModel::loadSites,
@@ -117,6 +164,7 @@ private fun NaruApp(app: NaruApplication) {
                         cabinTempC = state.cabinTempC,
                         assistant = state.assistant,
                         voiceInputAvailable = true,
+                        voiceOn = state.voiceOn,
                         actions = BedtimeScreenActions(
                             onBack = campingViewModel::back,
                             onClose = campingViewModel::cancel,
@@ -124,6 +172,7 @@ private fun NaruApp(app: NaruApplication) {
                             onSetSunriseWake = campingViewModel::setSunriseWake,
                             onSetWakeTime = campingViewModel::setWakeTime,
                             onNext = campingViewModel::goToThemeStep,
+                            onToggleVoice = campingViewModel::toggleVoice,
                             assistant = AssistantActions(
                                 onAsk = campingViewModel::ask,
                                 onToggleListening = campingViewModel::toggleListening,
@@ -154,6 +203,7 @@ private fun NaruApp(app: NaruApplication) {
                     actions = NightScreenActions(
                         onToggleSound = campingViewModel::toggleSound,
                         onEndNow = campingViewModel::endNow,
+                        onToggleVoice = campingViewModel::toggleVoice,
                         assistant = AssistantActions(
                             onAsk = campingViewModel::ask,
                             onToggleListening = campingViewModel::toggleListening,
@@ -209,6 +259,7 @@ private fun NaruApp(app: NaruApplication) {
                         modifier = Modifier.weight(1f),
                     )
                 }
+            }
             }
 
             if (BuildConfig.DEBUG) {

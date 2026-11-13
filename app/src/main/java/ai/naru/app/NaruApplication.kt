@@ -10,6 +10,8 @@ import ai.naru.app.camping.intent.PleosSpeechInput
 import ai.naru.app.camping.intent.ServerIntentRepository
 import ai.naru.app.camping.intent.SpeechInput
 import ai.naru.app.camping.morning.MorningAlarm
+import ai.naru.app.location.LocationGateway
+import ai.naru.app.location.PleosLocationGateway
 import ai.naru.app.camping.narration.NarrationRepository
 import ai.naru.app.camping.narration.PleosVoiceGuide
 import ai.naru.app.camping.narration.ServerNarrationRepository
@@ -62,6 +64,19 @@ class NaruApplication : Application() {
 
     /** 음성 입력 (Pleos SpeechToText, ON_DEVICE) */
     val speechInput: SpeechInput by lazy { PleosSpeechInput(this) }
+
+    /** 차량 위치 (Pleos FusedLocation, 이슈 #44) */
+    val locationGateway: LocationGateway by lazy { PleosLocationGateway(this) }
+
+    /** 처음 시작하기(권한 동의)를 봤는지. 앱 설정 저장소에 둔다 */
+    var onboardingDone: Boolean
+        get() = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_ONBOARDING, false)
+        set(value) = getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_ONBOARDING, value).apply()
+
+    private companion object {
+        const val PREFS = "naru_prefs"
+        const val KEY_ONBOARDING = "onboarding_done"
+    }
 
     /** 차박 기록 (앱 내부 저장소 파일) */
     val recordStore: SessionRecordStore by lazy { FileSessionRecordStore(File(filesDir, "session_records.json")) }

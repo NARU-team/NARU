@@ -54,6 +54,9 @@ import ai.naru.app.vehicle.Gear
 import ai.naru.app.vehicle.VehicleGateway
 import ai.naru.app.vehicle.VehicleResult
 import android.util.Log
+import ai.naru.app.camping.arrival.CampingPermission
+import ai.naru.app.location.FakeLocationGateway
+import ai.naru.app.location.LocationGateway
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -83,6 +86,10 @@ data class CampingUiState(
     val sitesUnavailable: Boolean = false,
     /** 도착 단계: 고른 장소의 오늘 밤 정보를 불러오는 중 */
     val loadingSite: Site? = null,
+    /** 도착 단계: 차량 위치로 장소를 찾는 중 (이슈 #44) */
+    val locating: Boolean = false,
+    /** 도착 단계: 시연 지역이 아닌 현재 위치의 오늘 밤 정보. 장소 유형을 고르면 판정한다 */
+    val hereConditions: SiteConditions? = null,
     /** 도착 단계: 고른 장소와 그 판정 결과 */
     val arrival: ArrivalState? = null,
     /** 취침 준비 단계: 오늘 밤 설정 */
@@ -214,6 +221,8 @@ class CampingViewModel(
     private val recordStore: SessionRecordStore = InMemorySessionRecordStore(),
     private val intents: IntentRepository = DisabledIntent,
     private val speech: SpeechInput? = null,
+    /** 차량 위치. 기본값은 위치 없음(시연 지역 고르기) */
+    private val location: LocationGateway = FakeLocationGateway(location = null, permitted = false),
     /** 지금 시각. 테스트에서 바꿔 끼운다. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
 ) : ViewModel() {
@@ -234,6 +243,12 @@ class CampingViewModel(
 
     /** 설정 복구 작업. 한 번만 돈다. */
     private var restoreJob: Job? = null
+
+    /**
+     * 위치로 장소 찾기. 새로 찾거나 사용자가 다른 선택(장소 유형·시연 지역·장소 바꾸기)을 하면 취소한다.
+     * 늦게 도착한 이전 결과가 화면을 덮어쓰지 않게 하기 위함 (에뮬레이터에서 장소 유형을 고른 뒤 고르기 화면으로 돌아간 실측)
+     */
+    private var locateJob: Job? = null
 
     /** 멘트 요청. 새 멘트가 오면 이전 요청은 취소한다. */
     private var narrationJob: Job? = null
@@ -293,7 +308,48 @@ class CampingViewModel(
 
     // --- 사용자 동작 ---
 
-    fun start() = dispatch(CampingEvent.Start(_state.value.gear))
+    fun start() {
+        dispatch(CampingEvent.Start(_state.value.gear))
+        if (_state.value.stage == CampingStage.ARRIVAL_CHECK) locate()
+    }
+
+    /**
+     * 차량 위치로 도착 장소를 찾는다 (기획서 "위치와 장소 유형… 조회", 이슈 #44).
+     * - 시연 지역 근처면 그 장소로 바로 판정
+     * - 아니면 현재 위치의 날씨·일출·물때를 받아 두고 장소 유형을 묻는다
+     * - 권한 없음·미지원·위치 없음·서버 실패면 시연 지역 고르기로 대체
+     */
+    fun locate() {
+        if (_state.value.stage != CampingStage.ARRIVAL_CHECK || !location.hasPermission()) return
+        locateJob?.cancel()
+        _state.update { it.copy(locating = true, arrival = null, hereConditions = null) }
+        locateJob = viewModelScope.launch {
+            val here = location.lastKnown()
+            val located = here?.let { siteRepository.conditionsAt(it) }
+            if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
+            _state.update { it.copy(locating = false) }
+            when {
+                located == null -> Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
+                located.site != null -> showArrival(_state.value.sites.firstOrNull { it.id == located.site.id } ?: located.site, located.conditions, retried = false)
+                else -> _state.update { it.copy(hereConditions = located.conditions) }
+            }
+        }
+    }
+
+    /** 현재 위치의 장소 유형 ("어떤 곳인가요?"). 허용 여부·시설 데이터가 없어 확인 필요로 판정한다 */
+    fun choosePlaceType(type: PlaceType) {
+        val conditions = _state.value.hereConditions ?: return
+        locateJob?.cancel()
+        val site = Site(id = HERE_SITE_ID, name = "현재 위치", placeType = type, permission = CampingPermission.UNKNOWN, facilities = emptyList())
+        _state.update { it.copy(hereConditions = null) }
+        showArrival(site, conditions, retried = false)
+    }
+
+    private fun showArrival(site: Site, conditions: SiteConditions, retried: Boolean) {
+        val assessment = ArrivalRules.assess(site, conditions)
+        _state.update { it.copy(arrival = ArrivalState(site, conditions, assessment, fetchedAt = clock(), retried = retried), loadingSite = null) }
+        narrate(NarrationScripts.arrival(site, conditions, assessment))
+    }
 
     /** 밤 전(도착·취침 준비)에 그만두고 홈으로. 밤부터는 처리하지 않는다 (차박 종료는 복구가 필요). */
     fun cancel() = dispatch(CampingEvent.Cancel)
@@ -302,12 +358,25 @@ class CampingViewModel(
     fun endNow() = dispatch(CampingEvent.EndNow)
 
     /** 도착 단계에서 장소를 고르면 오늘 밤 정보를 불러와 규칙으로 판정한다. */
-    fun selectSite(site: Site) = loadConditions(site, retried = false)
+    fun selectSite(site: Site) {
+        locateJob?.cancel()
+        _state.update { it.copy(locating = false, hereConditions = null) }
+        loadConditions(site, retried = false)
+    }
 
     /** 조회 실패일 때 한 번만 다시 불러온다 (피그마: "다시 시도는 한 번만 해요") */
     fun retryConditions() {
         val arrival = _state.value.arrival ?: return
         if (arrival.retried) return
+        if (arrival.site.id == HERE_SITE_ID) {
+            // 현재 위치는 좌표로 다시 조회한다 (장소 유형은 그대로)
+            viewModelScope.launch {
+                val located = location.lastKnown()?.let { siteRepository.conditionsAt(it) }
+                if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
+                showArrival(arrival.site, located?.conditions ?: arrival.conditions, retried = true)
+            }
+            return
+        }
         loadConditions(arrival.site, retried = true)
     }
 
@@ -315,19 +384,16 @@ class CampingViewModel(
     fun changeSite() {
         if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return
         stopNarration()
-        _state.update { it.copy(arrival = null, loadingSite = null) }
+        locateJob?.cancel()
+        _state.update { it.copy(arrival = null, loadingSite = null, hereConditions = null, locating = false) }
     }
 
     private fun loadConditions(site: Site, retried: Boolean) {
         _state.update { it.copy(loadingSite = site) }
         viewModelScope.launch {
             val conditions = siteRepository.conditions(site)
-            val assessment = ArrivalRules.assess(site, conditions)
             if (_state.value.stage != CampingStage.ARRIVAL_CHECK || _state.value.loadingSite != site) return@launch
-            _state.update {
-                it.copy(arrival = ArrivalState(site, conditions, assessment, fetchedAt = clock(), retried = retried), loadingSite = null)
-            }
-            narrate(NarrationScripts.arrival(site, conditions, assessment))
+            showArrival(site, conditions, retried)
         }
     }
 
@@ -916,6 +982,8 @@ class CampingViewModel(
                     // 새 세션을 시작하면 지난 세션의 판정·설정·백업은 지운다.
                     arrival = if (event is CampingEvent.Start) null else it.arrival,
                     loadingSite = null,
+                    locating = false,
+                    hereConditions = null,
                     bedtime = if (event is CampingEvent.Start) null else it.bedtime,
                     backup = if (event is CampingEvent.Start) null else it.backup,
                     temperatureApply = if (event is CampingEvent.Start) null else it.temperatureApply,
@@ -940,6 +1008,9 @@ class CampingViewModel(
 
     private companion object {
         const val TAG = "CampingViewModel"
+
+        /** 시연 지역이 아닌 현재 위치의 장소 id */
+        const val HERE_SITE_ID = "here"
         const val MAX_UTTERANCE = 100
         const val MAX_HISTORY_TURNS = 6
         const val LISTEN_TIMEOUT_MS = 10_000L

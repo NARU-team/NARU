@@ -6,6 +6,11 @@ import ai.naru.app.camping.bedtime.ControlResult
 import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.morning.RestoreReport
 import ai.naru.app.camping.intent.IntentAction
+import ai.naru.app.camping.arrival.LocatedConditions
+import ai.naru.app.camping.arrival.SiteConditions
+import ai.naru.app.camping.arrival.SiteRepository
+import ai.naru.app.location.FakeLocationGateway
+import ai.naru.app.location.LatLng
 import ai.naru.app.camping.BedtimeStep
 import ai.naru.app.camping.intent.IntentContext
 import ai.naru.app.camping.intent.IntentProposal
@@ -64,8 +69,18 @@ class CampingViewModelTest {
     private val speech = FakeSpeech()
     private var now = LocalDateTime.of(2026, 11, 13, 22, 0)
 
+    private val locationFake = FakeLocationGateway(location = null, permitted = false)
+    private var located: LocatedConditions? = null
+    private var locateCalls = 0
+    private val sitesRepo = object : SiteRepository by DemoSiteRepository() {
+        override suspend fun conditionsAt(location: LatLng): LocatedConditions? {
+            locateCalls++
+            return located
+        }
+    }
+
     private fun viewModel(vehicle: VehicleGateway = fake) =
-        CampingViewModel(vehicle, DemoSiteRepository(), sound, alarm, narration, voice, records, intents, speech, clock = { now })
+        CampingViewModel(vehicle, sitesRepo, sound, alarm, narration, voice, records, intents, speech, locationFake, clock = { now })
 
     /** 숲 캠핑장에서 24°C로 밤을 시작하기 직전까지 진행한다. */
     private fun CampingViewModel.goToBedtime() {
@@ -321,6 +336,107 @@ class CampingViewModelTest {
         vm.confirmArrival()
         assertEquals(23f, vm.state.value.bedtime?.recommendation?.celsius)
         assertEquals(ai.naru.app.camping.bedtime.FeedbackHint(24f, ai.naru.app.camping.bedtime.TempFeedback.HOT), vm.state.value.bedtime?.feedbackHint)
+    }
+
+    // --- 차량 위치 (이슈 #44) ---
+
+    private val hereConditions = SiteConditions(
+        weather = ai.naru.app.camping.arrival.NightWeather(8f, ai.naru.app.camping.arrival.Precipitation.NONE, strongWind = false, maxWindMs = 2f),
+        highTides = null,
+        sunrise = LocalTime.of(7, 5),
+    )
+
+    @Test
+    fun `위치 권한이 없으면 위치를 찾지 않고 시연 지역 고르기`() {
+        val vm = viewModel()
+        vm.start()
+        assertEquals(0, locateCalls)
+        assertEquals(false, vm.state.value.locating)
+        assertEquals(null, vm.state.value.arrival)
+    }
+
+    @Test
+    fun `시연 지역 근처면 바로 그 장소로 판정한다`() {
+        locationFake.permitted = true
+        locationFake.location = LatLng(36.5, 126.336)
+        val vm = viewModel()
+        val beach = vm.state.value.sites.first { it.placeType == PlaceType.BEACH }
+        located = LocatedConditions(beach, hereConditions)
+        vm.start()
+        assertEquals(beach.id, vm.state.value.arrival?.site?.id)
+        assertEquals(now, vm.state.value.arrival?.fetchedAt)
+    }
+
+    @Test
+    fun `시연 지역이 아니면 장소 유형을 묻고, 고르면 허용 여부 확인 필요로 판정한다`() {
+        locationFake.permitted = true
+        locationFake.location = LatLng(37.5665, 126.978)
+        located = LocatedConditions(null, hereConditions)
+        val vm = viewModel()
+        vm.start()
+        assertEquals(hereConditions, vm.state.value.hereConditions)
+        assertEquals(null, vm.state.value.arrival)
+
+        vm.choosePlaceType(PlaceType.FOREST)
+        val arrival = vm.state.value.arrival!!
+        assertEquals("현재 위치", arrival.site.name)
+        assertEquals(ai.naru.app.camping.arrival.CampingPermission.UNKNOWN, arrival.site.permission)
+        assertEquals(ai.naru.app.camping.arrival.ArrivalGrade.CHECK, arrival.assessment.grade)
+        assertEquals(null, vm.state.value.hereConditions)
+    }
+
+    @Test
+    fun `장소 유형을 고른 뒤 늦게 끝난 위치 조회는 화면을 덮어쓰지 않는다`() {
+        locationFake.permitted = true
+        locationFake.location = LatLng(37.5665, 126.978)
+        located = LocatedConditions(null, hereConditions)
+        // 두 번째 조회는 끝나지 않고 기다린다
+        val gate = kotlinx.coroutines.CompletableDeferred<LocatedConditions?>()
+        var calls = 0
+        val repo = object : SiteRepository by DemoSiteRepository() {
+            override suspend fun conditionsAt(location: LatLng): LocatedConditions? {
+                calls++
+                return if (calls == 1) located else gate.await()
+            }
+        }
+        val vm = CampingViewModel(fake, repo, sound, alarm, narration, voice, records, intents, speech, locationFake, clock = { now })
+        vm.start()
+        vm.locate() // 두 번째 조회 시작 (기다리는 중)
+        assertEquals(true, vm.state.value.locating)
+        // 첫 결과를 보고 고른 상황을 만든다
+        vm.changeSite()
+        vm.selectSite(vm.state.value.sites.first { it.placeType == PlaceType.FOREST })
+        val chosen = vm.state.value.arrival?.site?.id
+        gate.complete(null) // 늦게 끝남
+        assertEquals(chosen, vm.state.value.arrival?.site?.id)
+        assertEquals(false, vm.state.value.locating)
+    }
+
+    @Test
+    fun `위치를 못 받으면 시연 지역 고르기로 대체한다`() {
+        locationFake.permitted = true
+        locationFake.location = null
+        val vm = viewModel()
+        vm.start()
+        assertEquals(0, locateCalls)
+        assertEquals(false, vm.state.value.locating)
+        assertEquals(null, vm.state.value.hereConditions)
+        assertEquals(null, vm.state.value.arrival)
+    }
+
+    @Test
+    fun `현재 위치에서 다시 시도하면 좌표로 다시 조회한다`() {
+        locationFake.permitted = true
+        locationFake.location = LatLng(37.5665, 126.978)
+        located = LocatedConditions(null, SiteConditions(null, null))
+        val vm = viewModel()
+        vm.start()
+        vm.choosePlaceType(PlaceType.LAKE)
+        located = LocatedConditions(null, hereConditions)
+        vm.retryConditions()
+        assertEquals(2, locateCalls)
+        assertEquals(true, vm.state.value.arrival?.retried)
+        assertEquals(8f, vm.state.value.arrival?.conditions?.weather?.minTempC)
     }
 
     @Test

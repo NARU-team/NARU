@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nightHighTides, readTideItem } from "../lib/tide";
+import { nightHighTides, readTideItem } from "../lib/tide.js";
 
 const night = { eveningDate: "20261114", morningDate: "20261115" };
 

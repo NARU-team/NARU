@@ -1,4 +1,5 @@
 node_modules/
 .vercel/
-.env
-.env.local
+# 비밀 값 (vercel link가 만든 .env.local 포함). 예시 파일만 올린다.
+.env*
+!.env.example

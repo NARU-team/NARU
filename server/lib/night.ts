@@ -1,4 +1,4 @@
-import { addDays, toKst } from "./time";
+import { addDays, toKst } from "./time.js";
 
 /**
  * 오늘 밤 구간 (KST). 도착 판정과 아침 브리핑에 쓰는 날씨·물때는 이 구간 안의 값만 본다.

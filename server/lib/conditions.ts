@@ -1,9 +1,9 @@
-import type { Site } from "./sites";
-import { toGrid } from "./kmaGrid";
-import { fetchForecast, summarizeMorning, summarizeNight, type MorningWeather, type NightWeather } from "./kma";
-import { fetchTideItems, nightHighTides } from "./tide";
-import { sunriseKst } from "./sun";
-import { nightWindow } from "./night";
+import type { Site } from "./sites.js";
+import { toGrid } from "./kmaGrid.js";
+import { fetchForecast, summarizeMorning, summarizeNight, type MorningWeather, type NightWeather } from "./kma.js";
+import { fetchTideItems, nightHighTides } from "./tide.js";
+import { sunriseKst } from "./sun.js";
+import { nightWindow } from "./night.js";
 
 /** 앱 SiteConditions와 같은 모양. 불러오지 못한 항목은 null (추정해서 채우지 않는다). */
 export interface SiteConditions {

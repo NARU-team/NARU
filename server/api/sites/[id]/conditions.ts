@@ -1,5 +1,5 @@
-import { findSite } from "../../../lib/sites";
-import { siteConditions } from "../../../lib/conditions";
+import { findSite } from "../../../lib/sites.js";
+import { siteConditions } from "../../../lib/conditions.js";
 
 /**
  * GET /api/sites/{id}/conditions?wake=HHmm — 오늘 밤 날씨·물때·일출, 내일 아침 날씨

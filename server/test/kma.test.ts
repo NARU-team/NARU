@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePrecipitationMm, summarizeMorning, summarizeNight, type ForecastItem } from "../lib/kma";
+import { parsePrecipitationMm, summarizeMorning, summarizeNight, type ForecastItem } from "../lib/kma.js";
 
 const night = { eveningDate: "20261114", morningDate: "20261115" };
 const item = (category: string, fcstDate: string, fcstTime: string, fcstValue: string): ForecastItem => ({

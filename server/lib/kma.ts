@@ -1,7 +1,7 @@
-import { addDays, stamp, toKst } from "./time";
-import { NIGHT_END, NIGHT_START, type NightWindow } from "./night";
-import type { Grid } from "./kmaGrid";
-import { fetchJson } from "./http";
+import { addDays, stamp, toKst } from "./time.js";
+import { NIGHT_END, NIGHT_START, type NightWindow } from "./night.js";
+import type { Grid } from "./kmaGrid.js";
+import { fetchJson } from "./http.js";
 
 /**
  * 기상청 단기예보 조회서비스 (공공데이터포털, VilageFcstInfoService_2.0 / getVilageFcst).

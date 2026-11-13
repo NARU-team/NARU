@@ -1,4 +1,4 @@
-import { parseYmd, pad } from "./time";
+import { parseYmd, pad } from "./time.js";
 
 /**
  * 일출 시각 계산 (NOAA Solar Calculator의 근사식).

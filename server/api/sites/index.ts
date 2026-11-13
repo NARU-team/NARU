@@ -1,4 +1,4 @@
-import { SITES, publicSite } from "../../lib/sites";
+import { SITES, publicSite } from "../../lib/sites.js";
 
 /** GET /api/sites — 시연 지역 목록 */
 export function GET(): Response {

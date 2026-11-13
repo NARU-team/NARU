@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { siteConditions } from "../lib/conditions";
-import { findSite } from "../lib/sites";
+import { siteConditions } from "../lib/conditions.js";
+import { findSite } from "../lib/sites.js";
 
 test("키가 없으면 날씨·물때는 null이고 일출만 계산한다", async () => {
   const beach = findSite("demo-beach")!;

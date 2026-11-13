@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sunriseKst } from "../lib/sun";
+import { sunriseKst } from "../lib/sun.js";
 
 function minutes(hhmm: string | null): number {
   assert.ok(hhmm);

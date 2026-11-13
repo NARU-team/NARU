@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nightWindow } from "../lib/night";
-import { latestBase } from "../lib/kma";
+import { nightWindow } from "../lib/night.js";
+import { latestBase } from "../lib/kma.js";
 
 // 입력은 UTC. KST = UTC + 9시간
 test("저녁 8시(KST)에는 오늘 밤~내일 아침", () => {

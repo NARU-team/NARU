@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toGrid } from "../lib/kmaGrid";
+import { toGrid } from "../lib/kmaGrid.js";
 
 // 기상청 활용가이드 격자 위경도 표의 알려진 값
 test("서울시청은 격자 60,127", () => {

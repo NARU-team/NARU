@@ -1,6 +1,6 @@
-import { stamp } from "./time";
-import { NIGHT_END, NIGHT_START, type NightWindow } from "./night";
-import { fetchJson } from "./http";
+import { stamp } from "./time.js";
+import { NIGHT_END, NIGHT_START, type NightWindow } from "./night.js";
+import { fetchJson } from "./http.js";
 
 /**
  * 국립해양조사원 조석예보(고, 저조) 조회 (공공데이터포털 데이터셋 15156018).

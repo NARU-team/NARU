@@ -8,7 +8,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import ai.naru.app.R
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
@@ -53,7 +58,29 @@ private fun colorScheme(c: NaruColors) = lightColorScheme(
  */
 private const val CAR_TEXT_SCALE = 1.35f
 
-private fun TextStyle.scaled() = copy(fontSize = fontSize * CAR_TEXT_SCALE, lineHeight = lineHeight * CAR_TEXT_SCALE)
+/**
+ * Asta Sans (42dot, SIL Open Font License 1.1). 피그마 디자인 글꼴.
+ * 가변 글꼴 하나(res/font/asta_sans.ttf)에서 굵기별로 꺼내 쓴다. 정적 굵기 3개(7.7MB)보다 작다(5.8MB).
+ */
+@OptIn(ExperimentalTextApi::class) // FontVariation 설정 (minSdk 28이라 가변 글꼴 지원)
+private fun astaSans(weight: FontWeight) = Font(
+    R.font.asta_sans,
+    weight = weight,
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight.weight)),
+)
+
+val AstaSans = FontFamily(
+    astaSans(FontWeight.Normal),
+    astaSans(FontWeight.Medium),
+    astaSans(FontWeight.SemiBold),
+    astaSans(FontWeight.Bold),
+)
+
+private fun TextStyle.scaled() = copy(
+    fontFamily = AstaSans,
+    fontSize = fontSize * CAR_TEXT_SCALE,
+    lineHeight = lineHeight * CAR_TEXT_SCALE,
+)
 
 /**
  * 글자 계층 (피그마 기준, 배율 적용 전 값).

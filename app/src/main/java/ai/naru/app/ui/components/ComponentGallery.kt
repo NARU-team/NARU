@@ -1,5 +1,6 @@
 package ai.naru.app.ui.components
 
+import ai.naru.app.ui.theme.NaruIcons
 import ai.naru.app.ui.theme.NaruSpacing
 import ai.naru.app.ui.theme.NaruTheme
 import androidx.compose.foundation.background
@@ -7,11 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,18 +28,18 @@ private fun ComponentGalleryPreview() {
         ) {
             NaruStepHeader(title = "도착 안내 1/3", onBack = {}, onClose = {})
             Row(horizontalArrangement = Arrangement.spacedBy(NaruSpacing.small)) {
-                NaruChip("배터리 72%", icon = Icons.Filled.Info)
-                NaruChip("실외 최저 6°C", icon = Icons.Filled.Check)
-                NaruBadge("이동 권장", BadgeTone.WARNING, icon = Icons.Filled.Warning)
+                NaruChip("배터리 72%", icon = NaruIcons.Battery)
+                NaruChip("실외 최저 6°C", icon = NaruIcons.Moon)
+                NaruBadge("이동 권장", BadgeTone.WARNING, icon = NaruIcons.Wind)
                 NaruBadge("나루 추천 21°C", BadgeTone.ACCENT)
-                NaruBadge("현장 확인 필요", BadgeTone.NEUTRAL, icon = Icons.Filled.LocationOn)
+                NaruBadge("현장 확인 필요", BadgeTone.NEUTRAL, icon = NaruIcons.Location)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
-                NaruInfoCard(Icons.Filled.Warning, "오늘 밤 날씨 (주의)", "강한 바람 14m/s", Modifier.weight(1f),
+                NaruInfoCard(NaruIcons.Wind, "오늘 밤 날씨 (주의)", "강한 바람 14m/s", Modifier.weight(1f),
                     description = "밤새 강한 바람이 예보돼 있어요. 최저 3°C예요", source = "기상청 단기예보", tone = CardTone.WARNING)
-                NaruInfoCard(Icons.Filled.Info, "내일 새벽 물때", "만조 02:14", Modifier.weight(1f),
+                NaruInfoCard(NaruIcons.Tide, "내일 새벽 물때", "만조 02:14", Modifier.weight(1f),
                     description = "자는 동안 물이 가장 높아져요", source = "국립해양조사원 조석예보")
-                NaruInfoCard(Icons.Filled.LocationOn, "이용 정보 (확인 필요)", "화장실 있어요", Modifier.weight(1f),
+                NaruInfoCard(NaruIcons.Warning, "이용 정보 (확인 필요)", "화장실 있어요", Modifier.weight(1f),
                     description = "현장 안내판을 확인해 주세요", source = "한국관광공사 시설 정보")
             }
             NaruSegmented(listOf(30, 60, 90), minutes, { "${it}분 후" }, { minutes = it })
@@ -51,7 +47,7 @@ private fun ComponentGalleryPreview() {
                 NaruSecondaryButton("더 따뜻하게", {})
                 NaruSwitch(checked = true, onCheckedChange = {})
             }
-            NaruBottomBar(note = "나루는 조회한 정보만 알려 드려요. 머무를지는 직접 판단해 주세요.", noteIcon = Icons.Filled.Check) {
+            NaruBottomBar(note = "나루는 조회한 정보만 알려 드려요. 머무를지는 직접 판단해 주세요.", noteIcon = NaruIcons.Check) {
                 NaruSecondaryButton("그래도 준비하기", {})
                 NaruPrimaryButton("밤 분위기 고르기", {})
             }

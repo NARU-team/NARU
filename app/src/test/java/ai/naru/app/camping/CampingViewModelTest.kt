@@ -9,6 +9,8 @@ import ai.naru.app.camping.narration.NarrationMoment
 import ai.naru.app.camping.narration.NarrationRepository
 import ai.naru.app.camping.narration.VoiceGuide
 import ai.naru.app.camping.night.NightSound
+import ai.naru.app.camping.record.InMemorySessionRecordStore
+import java.time.LocalDateTime
 import ai.naru.app.vehicle.AmbientLight
 import ai.naru.app.vehicle.FakeVehicleGateway
 import ai.naru.app.vehicle.Gear
@@ -45,7 +47,11 @@ class CampingViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel(vehicle: VehicleGateway = fake) = CampingViewModel(vehicle, DemoSiteRepository(), sound, alarm, narration, voice)
+    private val records = InMemorySessionRecordStore()
+    private var now = LocalDateTime.of(2026, 11, 13, 22, 0)
+
+    private fun viewModel(vehicle: VehicleGateway = fake) =
+        CampingViewModel(vehicle, DemoSiteRepository(), sound, alarm, narration, voice, records, clock = { now })
 
     /** 숲 캠핑장에서 24°C로 밤을 시작하기 직전까지 진행한다. */
     private fun CampingViewModel.goToBedtime() {
@@ -179,6 +185,59 @@ class CampingViewModelTest {
         val shown = vm.state.value.narration!!
         assertEquals(NarrationMoment.MORNING, shown.moment)
         assertEquals(true, shown.text.contains("바깥은"))
+    }
+
+    @Test
+    fun `밤을 지나 세션이 끝나면 기록을 남긴다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        now = now.plusHours(9)
+        fake.setBatteryPercent(70)
+        vm.simulateWakeTime()
+        vm.wakeUp()
+        vm.finishSession()
+
+        val record = vm.state.value.records.single()
+        assertEquals(80, record.nightStartBattery)
+        assertEquals(70, record.nightEndBattery)
+        assertEquals(9.0, record.nightHours, 0.01)
+        assertEquals(24f, record.targetTempC)
+        assertEquals(EndReason.WAKE_TIME, record.endReason)
+        assertEquals(record, runBlocking { records.load() }.single())
+    }
+
+    @Test
+    fun `밤 전에 끝난 세션은 기록하지 않는다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        fake.setGear(Gear.DRIVE)
+        assertEquals(emptyList<Any>(), vm.state.value.records)
+    }
+
+    @Test
+    fun `밤에 기어가 바뀌어 끝나도 기록하고 이유를 남긴다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        now = now.plusHours(3)
+        fake.setGear(Gear.DRIVE)
+        assertEquals(EndReason.GEAR_LEFT_PARK, vm.state.value.records.single().endReason)
+    }
+
+    @Test
+    fun `비슷한 기록이 쌓이면 취침 준비에서 예상 잔량을 보여준다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        assertEquals(null, vm.state.value.bedtime?.forecast)
+
+        vm.addSampleRecords()
+
+        val forecast = vm.state.value.bedtime?.forecast
+        assertEquals(4, forecast?.basedOn)
+        assertEquals(true, forecast!!.lowPercent <= forecast.highPercent)
+        vm.clearRecords()
+        assertEquals(null, vm.state.value.bedtime?.forecast)
     }
 
     private class FakeNarration : NarrationRepository {

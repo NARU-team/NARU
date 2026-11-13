@@ -7,6 +7,7 @@ import ai.naru.app.camping.bedtime.RecommendationNote
 import ai.naru.app.camping.bedtime.TemperatureRecommendation
 import ai.naru.app.camping.bedtime.WakeBasis
 import ai.naru.app.ui.theme.NaruTheme
+import ai.naru.app.camping.night.NightThresholds
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -86,7 +87,24 @@ fun BedtimeContent(bedtime: BedtimeState?, actions: BedtimeActions) {
         }
 
         Section(title = "아침 예상 잔량") {
-            Text(text = "실측 데이터가 쌓이면 예상 범위를 보여드릴게요.", style = MaterialTheme.typography.bodyLarge)
+            val forecast = bedtime.forecast
+            if (forecast == null) {
+                Text(text = "실측 데이터가 쌓이면 예상 범위를 보여드릴게요.", style = MaterialTheme.typography.bodyLarge)
+            } else {
+                Text(text = "${forecast.lowPercent}~${forecast.highPercent}%", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    text = "비슷한 조건의 지난 기록 ${forecast.basedOn}건으로 계산했어요.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                if (forecast.belowLimit) {
+                    Text(
+                        text = "아침에 배터리가 ${NightThresholds.BATTERY_LIMIT_PERCENT}%보다 낮아질 수 있어요. 설정 온도를 조금 낮추는 걸 권해요.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         }
 
         Button(onClick = actions.onStartNight, enabled = !bedtime.preparing) {

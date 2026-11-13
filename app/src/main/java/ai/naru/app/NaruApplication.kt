@@ -11,6 +11,9 @@ import ai.naru.app.camping.narration.ServerNarrationRepository
 import ai.naru.app.camping.narration.TemplateOnlyNarration
 import ai.naru.app.camping.narration.VoiceGuide
 import ai.naru.app.camping.night.AndroidNightSound
+import ai.naru.app.camping.record.FileSessionRecordStore
+import ai.naru.app.camping.record.SessionRecordStore
+import java.io.File
 import ai.naru.app.camping.night.NightSound
 import ai.naru.app.vehicle.FakeVehicleGateway
 import ai.naru.app.vehicle.PleosVehicleGateway
@@ -46,4 +49,7 @@ class NaruApplication : Application() {
     }
 
     val voiceGuide: VoiceGuide by lazy { PleosVoiceGuide(this) }
+
+    /** 차박 기록 (앱 내부 저장소 파일) */
+    val recordStore: SessionRecordStore by lazy { FileSessionRecordStore(File(filesDir, "session_records.json")) }
 }

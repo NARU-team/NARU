@@ -53,6 +53,11 @@ test("요청 검증", () => {
   assert.ok(validateRequest(null));
 });
 
+test("잠들기 전 지시문은 예상 잔량과 주의를 빼지 말라고 한다", () => {
+  assert.match(instructions("BEDTIME"), /아침 예상 잔량/);
+  assert.match(instructions("BEDTIME"), /빼지 말고 꼭 전한다/);
+});
+
 test("등급을 약하게 바꾸지 말라는 규칙이 지시문에 있다", () => {
   assert.match(instructions("ARRIVAL"), /약하게 바꾸지 않는다/);
 });

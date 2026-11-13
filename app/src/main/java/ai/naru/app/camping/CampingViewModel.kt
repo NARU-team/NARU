@@ -25,6 +25,13 @@ import ai.naru.app.camping.narration.NarrationRequest
 import ai.naru.app.camping.narration.NarrationScripts
 import ai.naru.app.camping.narration.VoiceGuide
 import ai.naru.app.camping.night.NightRules
+import ai.naru.app.camping.record.BatteryForecast
+import ai.naru.app.camping.record.InMemorySessionRecordStore
+import ai.naru.app.camping.record.MorningForecast
+import ai.naru.app.camping.record.SampleRecords
+import ai.naru.app.camping.record.SessionRecord
+import ai.naru.app.camping.record.SessionRecordStore
+import java.util.UUID
 import ai.naru.app.camping.night.NightSound
 import ai.naru.app.camping.night.ThemeLightApplier
 import java.time.LocalDateTime
@@ -85,6 +92,15 @@ data class CampingUiState(
     val narration: NarrationState? = null,
     /** 음성 안내 켜기/끄기 */
     val voiceOn: Boolean = true,
+    /** 지난 차박 기록 (오래된 순) */
+    val records: List<SessionRecord> = emptyList(),
+    /** 이번 밤을 시작한 시각 */
+    val nightStartedAt: LocalDateTime? = null,
+    /** 이번 밤이 끝난 시각과 그때 배터리 (아침으로 넘어가거나 밤에서 끝날 때) */
+    val nightEndedAt: LocalDateTime? = null,
+    val nightEndBattery: Int? = null,
+    /** 밤이 끝난 이유 (기상 시각·배터리 하한·기어 이탈). 기록에 남긴다 */
+    val morningReason: EndReason? = null,
 )
 
 /** 멘트 하나. AI 멘트를 기다리는 동안에는 준비된 문장을 먼저 보여준다. */
@@ -115,6 +131,8 @@ data class BedtimeState(
     val vehicleTempRange: ClosedFloatingPointRange<Float>?,
     /** 차박 시작하기를 누른 뒤 차량 준비 중 */
     val preparing: Boolean = false,
+    /** 아침 예상 잔량. 비슷한 기록이 부족하면 null */
+    val forecast: MorningForecast? = null,
 )
 
 data class ArrivalState(
@@ -136,6 +154,9 @@ class CampingViewModel(
     private val alarm: MorningAlarm,
     private val narration: NarrationRepository,
     private val voice: VoiceGuide,
+    private val recordStore: SessionRecordStore = InMemorySessionRecordStore(),
+    /** 지금 시각. 테스트에서 바꿔 끼운다. */
+    private val clock: () -> LocalDateTime = LocalDateTime::now,
 ) : ViewModel() {
 
     private val nightPreparer = NightPreparer(vehicle)
@@ -178,6 +199,10 @@ class CampingViewModel(
             }
         }
         loadSites()
+        viewModelScope.launch {
+            val records = recordStore.load()
+            _state.update { it.copy(records = records) }
+        }
     }
 
     /** 장소 목록을 불러온다. 실패하면 화면에 다시 시도를 보여준다. */
@@ -226,7 +251,7 @@ class CampingViewModel(
                 theme = arrival.site.placeType,
             )
             _state.update {
-                it.copy(bedtime = BedtimeState(settings, recommendation, arrival.conditions.sunrise, range))
+                it.copy(bedtime = withForecast(it, BedtimeState(settings, recommendation, arrival.conditions.sunrise, range)))
             }
         }
     }
@@ -279,13 +304,82 @@ class CampingViewModel(
             dispatch(CampingEvent.StartNight)
             if (_state.value.stage == CampingStage.NIGHT) {
                 val state = _state.value
-                narrate(NarrationScripts.bedtime(bedtime.settings, bedtime.sunrise, state.batteryPercent))
+                narrate(NarrationScripts.bedtime(bedtime.settings, bedtime.sunrise, state.batteryPercent, state.bedtime?.forecast))
             }
         }
     }
 
+    /** 설정을 바꿀 때마다 예상 잔량도 다시 계산한다 (온도·기상 시각이 바뀌면 달라짐). */
     private fun updateBedtime(transform: (BedtimeState) -> BedtimeState) {
-        _state.update { state -> state.bedtime?.let { state.copy(bedtime = transform(it)) } ?: state }
+        _state.update { state -> state.bedtime?.let { state.copy(bedtime = withForecast(state, transform(it))) } ?: state }
+    }
+
+    private fun withForecast(state: CampingUiState, bedtime: BedtimeState): BedtimeState {
+        val now = clock()
+        val forecast = BatteryForecast.forecast(
+            records = state.records,
+            currentBattery = state.batteryPercent,
+            targetTempC = bedtime.settings.targetTempC,
+            minTempC = state.arrival?.conditions?.weather?.minTempC,
+            now = now,
+            wakeAt = NightRules.nextWakeDateTime(now, bedtime.settings.wakeAt),
+        )
+        return bedtime.copy(forecast = forecast)
+    }
+
+    // --- 기록 ---
+
+    /** 밤 단계를 거친 세션이 끝나면 기록을 남긴다. 저장에 실패해도 세션에는 영향이 없다. */
+    private fun saveRecord(reason: EndReason) {
+        val state = _state.value
+        val startedAt = state.nightStartedAt ?: return
+        val arrival = state.arrival ?: return
+        val settings = state.bedtime?.settings ?: return
+        val record = SessionRecord(
+            id = UUID.randomUUID().toString(),
+            nightStartedAt = startedAt,
+            nightEndedAt = state.nightEndedAt ?: clock(),
+            siteName = arrival.site.name,
+            placeType = arrival.site.placeType,
+            grade = arrival.assessment.grade,
+            minTempC = arrival.conditions.weather?.minTempC,
+            targetTempC = settings.targetTempC,
+            theme = settings.theme,
+            nightStartBattery = state.nightStartBattery,
+            nightEndBattery = state.nightEndBattery ?: state.batteryPercent,
+            // 아침에서 정상 종료하면 아침으로 넘어간 이유(기상 시각·배터리 하한)를 남긴다
+            endReason = if (reason == EndReason.COMPLETED) state.lastEndReasonBeforeMorning() else reason,
+            predictedLowPercent = state.bedtime.forecast?.lowPercent,
+            predictedHighPercent = state.bedtime.forecast?.highPercent,
+        )
+        viewModelScope.launch {
+            val records = recordStore.append(record)
+            _state.update { it.copy(records = records) }
+        }
+    }
+
+    private fun CampingUiState.lastEndReasonBeforeMorning(): EndReason = morningReason ?: EndReason.COMPLETED
+
+    /** 개발용: 지금 조건과 비슷한 샘플 기록을 더한다 (실제 측정값 아님). */
+    fun addSampleRecords() {
+        viewModelScope.launch {
+            val state = _state.value
+            val minTemp = state.arrival?.conditions?.weather?.minTempC ?: 5f
+            val target = state.bedtime?.settings?.targetTempC ?: 22f
+            var records = state.records
+            for (sample in SampleRecords.generate(clock(), minTemp, target)) records = recordStore.append(sample)
+            _state.update { it.copy(records = records) }
+            updateBedtime { it }
+        }
+    }
+
+    /** 개발용: 기록을 모두 지운다. */
+    fun clearRecords() {
+        viewModelScope.launch {
+            recordStore.clear()
+            _state.update { it.copy(records = emptyList()) }
+            updateBedtime { it }
+        }
     }
 
     fun dismissMessage() = _state.update { it.copy(message = null) }
@@ -306,8 +400,8 @@ class CampingViewModel(
 
     private fun onEnterNight() {
         val settings = _state.value.bedtime?.settings ?: return
-        val wakeDateTime = NightRules.nextWakeDateTime(LocalDateTime.now(), settings.wakeAt)
-        _state.update { it.copy(wakeDateTime = wakeDateTime) }
+        val wakeDateTime = NightRules.nextWakeDateTime(clock(), settings.wakeAt)
+        _state.update { it.copy(wakeDateTime = wakeDateTime, nightStartedAt = clock()) }
         if (_state.value.soundOn) playThemeSound()
         checkBatteryLimit()
 
@@ -319,7 +413,7 @@ class CampingViewModel(
         nightJob = viewModelScope.launch {
             // 앱이 켜져 있는 동안 기상 시각을 확인한다. TODO(미확정): Suspend 상태에서의 알람
             while (isActive) {
-                if (NightRules.isWakeTimeReached(LocalDateTime.now(), wakeDateTime)) {
+                if (NightRules.isWakeTimeReached(clock(), wakeDateTime)) {
                     dispatch(CampingEvent.WakeTimeReached)
                     break
                 }
@@ -329,6 +423,7 @@ class CampingViewModel(
     }
 
     private fun onLeaveNight() {
+        _state.update { it.copy(nightEndedAt = clock(), nightEndBattery = it.batteryPercent, morningReason = it.lastEndReason) }
         nightJob?.cancel()
         nightJob = null
         themeLightJob = null
@@ -493,6 +588,9 @@ class CampingViewModel(
                 if (previous != CampingStage.MORNING && result.stage == CampingStage.MORNING) onEnterMorning()
                 if (previous == CampingStage.MORNING && result.stage != CampingStage.MORNING) onLeaveMorning()
                 if (result.stage == CampingStage.IDLE) stopNarration()
+                if (result.stage == CampingStage.IDLE && previous in setOf(CampingStage.NIGHT, CampingStage.MORNING)) {
+                    saveRecord(result.reason ?: EndReason.COMPLETED)
+                }
             }
             is CampingTransition.RestoreThenEnd -> endAfterRestore(result.reason)
             is CampingTransition.Rejected -> {
@@ -524,6 +622,10 @@ class CampingViewModel(
                     restoring = if (event is CampingEvent.Start) false else it.restoring,
                     restore = if (event is CampingEvent.Start) null else it.restore,
                     narration = if (event is CampingEvent.Start) null else it.narration,
+                    nightStartedAt = if (event is CampingEvent.Start) null else it.nightStartedAt,
+                    nightEndedAt = if (event is CampingEvent.Start) null else it.nightEndedAt,
+                    nightEndBattery = if (event is CampingEvent.Start) null else it.nightEndBattery,
+                    morningReason = if (event is CampingEvent.Start) null else it.morningReason,
                 )
             }
     }

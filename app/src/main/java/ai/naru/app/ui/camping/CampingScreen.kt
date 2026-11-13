@@ -83,6 +83,7 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
             }
             // 기어 이탈로 복구 후 바로 끝난 경우 등, 직접 확인할 설정이 남았으면 여기서도 알린다.
             state.restore?.takeIf { it.needsManualCheck }?.let { RestoreSummary(it) }
+            RecordList(records = state.records)
             Text(text = "주차(P) 상태에서 차박 모드를 시작할 수 있어요.", style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = actions.onStart) { Text("차박 시작") }

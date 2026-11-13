@@ -64,6 +64,7 @@ private fun NaruApp(app: NaruApplication) {
                         actions = CampingActions(
                             onStart = campingViewModel::start,
                             onSelectSite = campingViewModel::selectSite,
+                            onRetrySites = campingViewModel::loadSites,
                             onConfirmArrival = campingViewModel::confirmArrival,
                             bedtime = BedtimeActions(
                                 onAdjustTemperature = campingViewModel::adjustTemperature,

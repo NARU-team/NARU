@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 data class CampingActions(
     val onStart: () -> Unit = {},
     val onSelectSite: (Site) -> Unit = {},
+    val onRetrySites: () -> Unit = {},
     val onConfirmArrival: () -> Unit = {},
     val bedtime: BedtimeActions = BedtimeActions(),
     val onToggleSound: () -> Unit = {},
@@ -90,6 +91,8 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
             arrival = state.arrival,
             onSelectSite = actions.onSelectSite,
             onConfirm = actions.onConfirmArrival,
+            sitesUnavailable = state.sitesUnavailable,
+            onRetrySites = actions.onRetrySites,
         )
 
         CampingStage.BEDTIME_PREP -> BedtimeContent(bedtime = state.bedtime, actions = actions.bedtime)

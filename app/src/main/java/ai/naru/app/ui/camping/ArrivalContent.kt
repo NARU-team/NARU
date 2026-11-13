@@ -21,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -36,9 +37,15 @@ fun ArrivalContent(
     arrival: ArrivalState?,
     onSelectSite: (Site) -> Unit,
     onConfirm: () -> Unit,
+    sitesUnavailable: Boolean = false,
+    onRetrySites: () -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(text = "어디에서 머무르나요?", style = MaterialTheme.typography.titleLarge)
+        if (sitesUnavailable && sites.isEmpty()) {
+            Text(text = "장소 정보를 불러오지 못했어요. 네트워크 연결을 확인해 주세요.", style = MaterialTheme.typography.bodyLarge)
+            OutlinedButton(onClick = onRetrySites) { Text("다시 불러오기") }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             for (site in sites) {
                 FilterChip(

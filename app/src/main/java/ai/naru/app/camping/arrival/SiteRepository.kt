@@ -3,8 +3,7 @@ package ai.naru.app.camping.arrival
 import java.time.LocalTime
 
 /**
- * 장소 정보를 가져오는 곳.
- * 지금은 시연 지역 내장 데이터를 쓰고, 중계 서버가 생기면 서버 구현으로 바꾼다.
+ * 장소 정보를 가져오는 곳. 중계 서버 구현([ServerSiteRepository])과 내장 샘플([DemoSiteRepository])이 있다.
  */
 interface SiteRepository {
     suspend fun sites(): List<Site>
@@ -14,9 +13,7 @@ interface SiteRepository {
 
 /**
  * 시연 지역 내장 데이터. **실제 장소·날씨가 아닌 샘플 값**이다.
- * 3가지 등급이 하나씩 나오도록 구성했다.
- *
- * TODO(다음 이슈): 중계 서버(기상청·관광공사·국립해양조사원) 연동 구현으로 교체
+ * 3가지 등급이 하나씩 나오도록 구성했다. 서버 주소를 설정하지 않은 개발 환경과 테스트에서 쓴다.
  */
 class DemoSiteRepository : SiteRepository {
 

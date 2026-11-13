@@ -1,6 +1,7 @@
 package ai.naru.app
 
 import ai.naru.app.camping.arrival.DemoSiteRepository
+import ai.naru.app.camping.arrival.ServerSiteRepository
 import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.camping.morning.AndroidMorningAlarm
 import ai.naru.app.camping.morning.MorningAlarm
@@ -25,8 +26,10 @@ class NaruApplication : Application() {
         if (PleosVehicleGateway.isAvailable(this)) PleosVehicleGateway(this) else FakeVehicleGateway()
     }
 
-    /** TODO(다음 이슈): 중계 서버가 생기면 서버 구현으로 바꾼다. 지금은 시연 지역 샘플 데이터. */
-    val siteRepository: SiteRepository by lazy { DemoSiteRepository() }
+    /** 서버 주소(local.properties의 naru.serverUrl)가 있으면 중계 서버, 없으면 내장 샘플 데이터. */
+    val siteRepository: SiteRepository by lazy {
+        if (BuildConfig.SERVER_URL.isNotBlank()) ServerSiteRepository(BuildConfig.SERVER_URL) else DemoSiteRepository()
+    }
 
     val nightSound: NightSound by lazy { AndroidNightSound(this) }
 

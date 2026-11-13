@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -15,6 +17,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        // 중계 서버 주소. local.properties의 naru.serverUrl (예: https://naru-server.vercel.app).
+        // 비어 있으면 앱은 내장 샘플 데이터(DemoSiteRepository)를 쓴다.
+        val localProperties = Properties().apply {
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        buildConfigField("String", "SERVER_URL", "\"${localProperties.getProperty("naru.serverUrl", "")}\"")
     }
 
     // AAOS Car API(CarPropertyManager 등)를 쓰기 위한 선택 라이브러리.
@@ -56,4 +65,6 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // 단위 테스트(JVM)에서는 Android의 org.json이 빈 껍데기라 실제 구현을 넣는다
+    testImplementation(libs.json)
 }

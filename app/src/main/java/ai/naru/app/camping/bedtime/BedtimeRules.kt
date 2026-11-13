@@ -44,6 +44,9 @@ enum class RecommendationNote {
 
     /** 차량 범위를 벗어나 범위 안으로 맞춤 */
     CLAMPED_TO_VEHICLE_RANGE,
+
+    /** 지난 비슷한 밤의 온도 피드백을 반영함 (이슈 #41) */
+    FEEDBACK_APPLIED,
 }
 
 /** 취침 준비 단계 규칙. 규칙 기반 순수 함수다. */
@@ -57,14 +60,21 @@ object BedtimeRules {
         minTempC: Float?,
         batteryPercent: Int?,
         vehicleRange: ClosedFloatingPointRange<Float>?,
+        feedback: FeedbackHint? = null,
     ): TemperatureRecommendation {
         val notes = mutableListOf<RecommendationNote>()
 
-        var celsius = if (minTempC == null) {
-            notes += RecommendationNote.WEATHER_UNKNOWN
-            BedtimeThresholds.DEFAULT_TEMP_C
-        } else {
-            baseByMinTemp(minTempC)
+        var celsius = when {
+            minTempC == null -> {
+                notes += RecommendationNote.WEATHER_UNKNOWN
+                BedtimeThresholds.DEFAULT_TEMP_C
+            }
+            // 비슷한 밤의 피드백이 있으면 그날 온도에서 조정한다 (추천값만, 적용은 사용자가 시작할 때)
+            feedback != null -> {
+                notes += RecommendationNote.FEEDBACK_APPLIED
+                FeedbackRules.adjusted(feedback)
+            }
+            else -> baseByMinTemp(minTempC)
         }
 
         val isHeating = minTempC == null || minTempC <= BedtimeThresholds.HEATING_MAX_MIN_TEMP_C

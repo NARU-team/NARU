@@ -3,6 +3,7 @@ package ai.naru.app.camping.record
 import ai.naru.app.camping.EndReason
 import ai.naru.app.camping.arrival.ArrivalGrade
 import ai.naru.app.camping.arrival.PlaceType
+import ai.naru.app.camping.bedtime.TempFeedback
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -29,6 +30,8 @@ data class SessionRecord(
     val endReason: EndReason,
     val predictedLowPercent: Int? = null,
     val predictedHighPercent: Int? = null,
+    /** 아침에 고른 온도 느낌. 다음 추천에 반영한다 */
+    val feedback: TempFeedback? = null,
 ) {
     val nightHours: Double get() = Duration.between(nightStartedAt, nightEndedAt).toMinutes() / 60.0
 

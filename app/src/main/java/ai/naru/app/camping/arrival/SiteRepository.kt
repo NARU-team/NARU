@@ -47,14 +47,14 @@ class DemoSiteRepository : SiteRepository {
             weather = NightWeather(minTempC = 6f, precipitation = Precipitation.NONE, strongWind = false, maxWindMs = 2f),
             highTides = null,
             sunrise = LocalTime.of(7, 21),
-            morningWeather = MorningWeather(tempC = 8f, sky = Sky.CLEAR),
+            morningWeather = MorningWeather(tempC = 8f, sky = Sky.CLEAR, dayMaxTempC = 15f, windMs = 2f),
         ),
         // 현장 확인 필요: 허용 여부 불명확, 영하
         "demo-lake" to SiteConditions(
             weather = NightWeather(minTempC = -2f, precipitation = Precipitation.NONE, strongWind = false, maxWindMs = 4f),
             highTides = null,
             sunrise = LocalTime.of(7, 18),
-            morningWeather = MorningWeather(tempC = 0f, sky = Sky.CLOUDY),
+            morningWeather = MorningWeather(tempC = 0f, sky = Sky.CLOUDY, dayMaxTempC = 9f, windMs = 3f),
         ),
         // 주의·이동 권장: 밤사이 만조
         "demo-beach" to SiteConditions(
@@ -62,7 +62,7 @@ class DemoSiteRepository : SiteRepository {
             highTides = listOf(LocalTime.of(2, 40), LocalTime.of(14, 55)),
             lowTides = listOf(LocalTime.of(8, 31)),
             sunrise = LocalTime.of(7, 15),
-            morningWeather = MorningWeather(tempC = 11f, sky = Sky.OVERCAST),
+            morningWeather = MorningWeather(tempC = 11f, sky = Sky.OVERCAST, dayMaxTempC = 16f, windMs = 4f),
         ),
     )
 

@@ -10,6 +10,8 @@ import ai.naru.app.camping.BedtimeStep
 import ai.naru.app.ui.camping.AssistantActions
 import ai.naru.app.ui.camping.BedtimeScreen
 import ai.naru.app.ui.camping.BedtimeScreenActions
+import ai.naru.app.ui.camping.MorningScreen
+import ai.naru.app.ui.camping.MorningScreenActions
 import ai.naru.app.ui.camping.NightScreen
 import ai.naru.app.ui.camping.NightScreenActions
 import ai.naru.app.ui.camping.ThemeScreen
@@ -158,6 +160,17 @@ private fun NaruApp(app: NaruApplication) {
                             onApprove = campingViewModel::approveChanges,
                             onReject = campingViewModel::rejectChanges,
                         ),
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+
+                // 피그마 v2 기상 → 아침 브리핑 (이슈 #41)
+                CampingStage.MORNING -> MorningScreen(
+                    state = state,
+                    actions = MorningScreenActions(
+                        onWakeUp = campingViewModel::wakeUp,
+                        onFeedback = campingViewModel::setFeedback,
+                        onFinish = campingViewModel::finishSession,
                     ),
                     modifier = Modifier.weight(1f),
                 )

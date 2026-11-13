@@ -301,6 +301,29 @@ class CampingViewModelTest {
     }
 
     @Test
+    fun `밤을 시작하면 온도를 기록하고, 아침 피드백은 기록에 남아 다음 추천에 반영된다`() {
+        val vm = viewModel()
+        vm.goToBedtime() // 24°C로 올림
+        vm.startNight()
+        assertEquals(1, vm.state.value.nightTemps.size)
+        assertEquals(19f, vm.state.value.nightTemps.first().cabinC)
+        assertEquals(9f, vm.state.value.nightTemps.first().outsideC)
+
+        vm.simulateWakeTime()
+        vm.wakeUp()
+        vm.setFeedback(ai.naru.app.camping.bedtime.TempFeedback.HOT)
+        vm.finishSession()
+        assertEquals(ai.naru.app.camping.bedtime.TempFeedback.HOT, vm.state.value.records.single().feedback)
+
+        // 다음 차박: 같은 숲(최저 6°C) → 지난번 24°C가 더웠으니 23°C 추천
+        vm.start()
+        vm.selectSite(vm.state.value.sites.first { it.placeType == PlaceType.FOREST })
+        vm.confirmArrival()
+        assertEquals(23f, vm.state.value.bedtime?.recommendation?.celsius)
+        assertEquals(ai.naru.app.camping.bedtime.FeedbackHint(24f, ai.naru.app.camping.bedtime.TempFeedback.HOT), vm.state.value.bedtime?.feedbackHint)
+    }
+
+    @Test
     fun `밤부터는 그만두기로 끝나지 않는다`() {
         val vm = viewModel()
         vm.goToBedtime()

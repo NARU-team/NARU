@@ -34,6 +34,11 @@ import ai.naru.app.camping.narration.NarrationRequest
 import ai.naru.app.camping.narration.NarrationScripts
 import ai.naru.app.camping.narration.VoiceGuide
 import ai.naru.app.camping.night.NightRules
+import ai.naru.app.camping.night.NightTemps
+import ai.naru.app.camping.night.TempSample
+import ai.naru.app.camping.bedtime.FeedbackHint
+import ai.naru.app.camping.bedtime.FeedbackRules
+import ai.naru.app.camping.bedtime.TempFeedback
 import ai.naru.app.camping.record.BatteryForecast
 import ai.naru.app.camping.record.InMemorySessionRecordStore
 import ai.naru.app.camping.record.MorningForecast
@@ -119,6 +124,10 @@ data class CampingUiState(
     val assistant: AssistantState = AssistantState(),
     /** 취침 준비 단계 안의 화면 */
     val bedtimeStep: BedtimeStep = BedtimeStep.SETTINGS,
+    /** 밤사이 실내·바깥 온도 기록 (10분 간격, 아침 브리핑 그래프) */
+    val nightTemps: List<TempSample> = emptyList(),
+    /** 아침 브리핑에서 고른 온도 느낌 (기록에 저장, 다음 추천에 반영) */
+    val feedback: TempFeedback? = null,
 )
 
 /**
@@ -170,6 +179,8 @@ data class BedtimeState(
     val forecast: MorningForecast? = null,
     /** 온도별 아침 예상 배터리 (고른 온도 −1/0/+1). 기록이 부족한 온도는 forecast가 null */
     val forecastRows: List<TempForecast> = emptyList(),
+    /** 추천에 반영한 지난 비슷한 밤의 피드백 ("지난 차박 22°C는 더웠음") */
+    val feedbackHint: FeedbackHint? = null,
 )
 
 data class TempForecast(val celsius: Float, val forecast: MorningForecast?)
@@ -327,10 +338,13 @@ class CampingViewModel(
         if (_state.value.stage != CampingStage.BEDTIME_PREP) return
         viewModelScope.launch {
             val range = vehicle.capabilities().targetTemperatureRange
+            val minTemp = arrival.conditions.weather?.minTempC
+            val hint = FeedbackRules.hint(_state.value.records, minTemp)
             val recommendation = BedtimeRules.recommendTemperature(
-                minTempC = arrival.conditions.weather?.minTempC,
+                minTempC = minTemp,
                 batteryPercent = _state.value.batteryPercent,
                 vehicleRange = range,
+                feedback = hint,
             )
             val settings = BedtimeSettings(
                 targetTempC = recommendation.celsius,
@@ -339,7 +353,7 @@ class CampingViewModel(
                 theme = arrival.site.placeType,
             )
             _state.update {
-                it.copy(bedtime = withForecast(it, BedtimeState(settings, recommendation, arrival.conditions.sunrise, range)))
+                it.copy(bedtime = withForecast(it, BedtimeState(settings, recommendation, arrival.conditions.sunrise, range, feedbackHint = hint)))
             }
         }
     }
@@ -485,6 +499,7 @@ class CampingViewModel(
             endReason = if (reason == EndReason.COMPLETED) state.lastEndReasonBeforeMorning() else reason,
             predictedLowPercent = state.bedtime.forecast?.lowPercent,
             predictedHighPercent = state.bedtime.forecast?.highPercent,
+            feedback = state.feedback,
         )
         viewModelScope.launch {
             val records = recordStore.append(record)
@@ -493,6 +508,20 @@ class CampingViewModel(
     }
 
     private fun CampingUiState.lastEndReasonBeforeMorning(): EndReason = morningReason ?: EndReason.COMPLETED
+
+    /** 아침 브리핑 "온도는 어땠나요?" */
+    fun setFeedback(feedback: TempFeedback) {
+        if (_state.value.stage == CampingStage.MORNING) _state.update { it.copy(feedback = feedback) }
+    }
+
+    /** 밤사이 실내·바깥 온도를 한 번 읽어 기록한다 (그래프용, 실패한 값은 null) */
+    private fun sampleTemps() {
+        viewModelScope.launch {
+            val cabin = (vehicle.getCabinTemperature() as? VehicleResult.Success)?.value
+            val outside = (vehicle.getOutsideTemperature() as? VehicleResult.Success)?.value
+            _state.update { it.copy(nightTemps = it.nightTemps + TempSample(clock(), cabin, outside)) }
+        }
+    }
 
     /** 개발용: 지금 조건과 비슷한 샘플 기록을 더한다 (실제 측정값 아님). */
     fun addSampleRecords() {
@@ -538,6 +567,7 @@ class CampingViewModel(
         _state.update { it.copy(wakeDateTime = wakeDateTime, nightStartedAt = clock()) }
         if (_state.value.soundOn) playThemeSound()
         checkBatteryLimit()
+        sampleTemps()
 
         themeLightJob = viewModelScope.launch {
             val lightResult = themeLightApplier.apply(settings.theme)
@@ -547,6 +577,7 @@ class CampingViewModel(
         nightJob = viewModelScope.launch {
             // 앱이 켜져 있는 동안 기상 시각을 확인한다. TODO(미확정): Suspend 상태에서의 알람
             while (isActive) {
+                if (NightTemps.isSampleDue(_state.value.nightTemps.lastOrNull()?.at, clock())) sampleTemps()
                 if (NightRules.isWakeTimeReached(clock(), wakeDateTime)) {
                     dispatch(CampingEvent.WakeTimeReached)
                     break
@@ -897,6 +928,8 @@ class CampingViewModel(
                     // 단계가 바뀌면 취침 준비 안의 화면은 처음(2/3)부터
                     bedtimeStep = BedtimeStep.SETTINGS,
                     narration = if (event is CampingEvent.Start) null else it.narration,
+                    nightTemps = if (event is CampingEvent.Start) emptyList() else it.nightTemps,
+                    feedback = if (event is CampingEvent.Start) null else it.feedback,
                     nightStartedAt = if (event is CampingEvent.Start) null else it.nightStartedAt,
                     nightEndedAt = if (event is CampingEvent.Start) null else it.nightEndedAt,
                     nightEndBattery = if (event is CampingEvent.Start) null else it.nightEndBattery,

@@ -3,6 +3,7 @@ package ai.naru.app.camping.record
 import ai.naru.app.camping.EndReason
 import ai.naru.app.camping.arrival.ArrivalGrade
 import ai.naru.app.camping.arrival.PlaceType
+import ai.naru.app.camping.bedtime.TempFeedback
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -122,6 +123,7 @@ object SessionRecordJson {
         put("endReason", endReason.name)
         putOpt("predictedLowPercent", predictedLowPercent)
         putOpt("predictedHighPercent", predictedHighPercent)
+        putOpt("feedback", feedback?.name)
     }
 
     private fun JSONObject.toRecord() = SessionRecord(
@@ -139,6 +141,7 @@ object SessionRecordJson {
         endReason = EndReason.valueOf(getString("endReason")),
         predictedLowPercent = optIntOrNull("predictedLowPercent"),
         predictedHighPercent = optIntOrNull("predictedHighPercent"),
+        feedback = if (has("feedback")) optStringOrNull("feedback")?.let { runCatching { TempFeedback.valueOf(it) }.getOrNull() } else null,
     )
 
     private fun JSONObject.optStringOrNull(key: String) = if (isNull(key)) null else getString(key)

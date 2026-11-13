@@ -49,8 +49,10 @@ test("밤 구간에 기온 예보가 없으면 날씨를 모른다", () => {
   assert.equal(summarizeNight([item("TMP", "20261114", "1200", "10")], night), null);
 });
 
-test("기상 시각 정시의 기온과 하늘 상태", () => {
-  assert.deepEqual(summarizeMorning(calmNight, night, "0730"), { tempC: 6, sky: "CLEAR" });
+test("기상 시각 정시의 기온과 하늘 상태, 낮 최고·바람", () => {
+  assert.deepEqual(summarizeMorning(calmNight, night, "0730"), { tempC: 6, sky: "CLEAR", dayMaxTempC: 6, windMs: null });
+  const withTmx = [...calmNight, item("TMX", "20261115", "1500", "13.0"), item("WSD", "20261115", "0700", "2.1")];
+  assert.deepEqual(summarizeMorning(withTmx, night, "0700"), { tempC: 6, sky: "CLEAR", dayMaxTempC: 13, windMs: 2.1 });
 });
 
 test("강수형태가 있으면 하늘 상태보다 우선한다", () => {

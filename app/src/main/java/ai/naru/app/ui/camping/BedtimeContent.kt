@@ -148,6 +148,7 @@ private fun recommendationText(recommendation: TemperatureRecommendation): Strin
             RecommendationNote.WEATHER_UNKNOWN -> "날씨 정보가 없어 기본값으로 추천했어요"
             RecommendationNote.LOW_BATTERY_SAVING -> "배터리가 적어 1°C 낮췄어요"
             RecommendationNote.CLAMPED_TO_VEHICLE_RANGE -> "차량이 지원하는 범위로 맞췄어요"
+            RecommendationNote.FEEDBACK_APPLIED -> "지난 비슷한 밤의 온도 느낌을 반영했어요"
         }
     }
     return if (reasons.isEmpty()) "$base · 야간 최저기온 기준" else "$base · ${reasons.joinToString(" · ")}"

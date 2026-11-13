@@ -41,6 +41,10 @@ enum class Sky { CLEAR, CLOUDY, OVERCAST, RAIN, SNOW }
 data class MorningWeather(
     val tempC: Float,
     val sky: Sky,
+    /** 낮 최고기온. 모르면 null */
+    val dayMaxTempC: Float? = null,
+    /** 기상 시각 무렵 풍속(m/s). 모르면 null */
+    val windMs: Float? = null,
 )
 
 /**

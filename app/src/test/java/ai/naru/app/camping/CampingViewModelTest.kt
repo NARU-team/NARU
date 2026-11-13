@@ -311,6 +311,16 @@ class CampingViewModelTest {
     }
 
     @Test
+    fun `제안이 규칙 검사에서 모두 걸러지면 바꿀까요라고 묻지 않는다`() {
+        intents.replies += IntentReply("24도로 바꿀까요?", false, listOf(IntentProposal(IntentAction.SET_TEMPERATURE, celsius = 24f)))
+        val vm = viewModel()
+        vm.goToBedtime() // 이미 24°C
+        vm.ask("24도로 해줘")
+        assertEquals(emptyList<ProposedChange>(), vm.state.value.assistant.pending)
+        assertEquals("지금 설정과 같거나 바꿀 수 없는 값이라 그대로 둘게요.", vm.state.value.assistant.turns.last().text)
+    }
+
+    @Test
     fun `해석에 실패하면 이해하지 못했다고 안내한다`() {
         val vm = viewModel()
         vm.goToBedtime()

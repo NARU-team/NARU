@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ALLOWED, INTENT_SCHEMA, instructions, interpret, validateRequest, validateResult, type IntentContext } from "../lib/intent.js";
+import { ALLOWED, CANNOT_CHANGE_REPLY, INTENT_SCHEMA, instructions, interpret, validateRequest, validateResult, type IntentContext } from "../lib/intent.js";
 
 const bedtime: IntentContext = {
   stage: "BEDTIME_PREP", targetTempC: 22, tempMinC: 15, tempMaxC: 30, wakeAt: "07:00", sunrise: "07:10", theme: "FOREST", soundOn: true, voiceOn: true,
@@ -19,9 +19,19 @@ test("형식이 맞는 제안만 남긴다", () => {
   assert.deepEqual(result?.proposals.map((x) => x.type), ["SET_TEMPERATURE"]);
 });
 
-test("단계에서 허용되지 않은 동작은 버린다 (밤에는 기상 시각 변경 불가)", () => {
-  const result = validateResult({ reply: "7시 반으로 바꿀까요?", needsClarification: false, proposals: [p({ type: "SET_WAKE_TIME", time: "07:30" })] }, "NIGHT");
+test("단계에서 허용되지 않은 동작은 버리고, 모두 걸러지면 바꿀 수 없다고 답한다 (밤에는 기상 시각 변경 불가)", () => {
+  const result = validateResult({ reply: "8시에 깨우도록 바꿀까요?", needsClarification: false, proposals: [p({ type: "SET_WAKE_TIME", time: "08:00" })] }, "NIGHT");
   assert.deepEqual(result?.proposals, []);
+  assert.equal(result?.reply, CANNOT_CHANGE_REPLY);
+});
+
+test("일부만 걸러지면 원래 답변을 둔다", () => {
+  const result = validateResult(
+    { reply: "1도 올리고 8시에 깨울까요?", needsClarification: false, proposals: [p({ type: "ADJUST_TEMPERATURE", deltaC: 1 }), p({ type: "SET_WAKE_TIME", time: "08:00" })] },
+    "NIGHT",
+  );
+  assert.equal(result?.proposals.length, 1);
+  assert.equal(result?.reply, "1도 올리고 8시에 깨울까요?");
 });
 
 test("온도 범위·변화량을 검사한다", () => {

@@ -30,6 +30,9 @@ export const ALLOWED: Record<Stage, ActionType[]> = {
 
 export const THEMES = ["BEACH", "FOREST", "LAKE"] as const;
 
+/** LLM이 제안했지만 모두 걸러졌을 때 답변 대신 쓰는 문장 (제안 카드 없이 "바꿀까요?"라고 묻지 않게) */
+export const CANNOT_CHANGE_REPLY = "지금 단계에서는 그 설정을 바꿀 수 없어요.";
+
 export const INTENT_LIMITS = {
   maxUtteranceChars: 100,
   maxHistoryTurns: 6,
@@ -123,6 +126,7 @@ export function instructions(context: IntentContext): string {
     "너는 차박하는 운전자를 돕는 차량 에이전트 '나루'다. 사용자의 말을 설정 변경 '제안'으로 바꾼다.",
     "제안은 사용자가 승인해야 적용된다. 이미 바꿨다고 말하지 말고 '~로 바꿀까요?'처럼 제안한다.",
     `지금 단계에서 제안할 수 있는 동작:\n${allowed}`,
+    "목록에 없는 동작은 이 단계에서 바꿀 수 없다고 답한다 (예: 밤 단계에서는 기상 시각·테마를 바꿀 수 없다).",
     "목록에 없는 요청(차량 이동, 문 열기, 기상 시각 외의 알람 등)은 제안하지 말고 할 수 없다고 짧게 답한다.",
     "값을 정할 수 없으면 needsClarification=true, proposals는 비우고 reply로 되묻는다 (예: '몇 시에 깨워 드릴까요?').",
     "이전 대화를 참고해 '아니 1도 더', '그거 말고 숲으로' 같은 고쳐 말하기를 해석한다. 이전 제안을 고칠 때는 지금 설정 기준의 최종값을 제안한다.",
@@ -160,6 +164,10 @@ export function validateResult(raw: unknown, stage: Stage): IntentResult | null 
     .filter((p): p is Proposal => !!p && ALLOWED[stage].includes(p.type as ActionType))
     .filter(isWellFormed)
     .slice(0, INTENT_LIMITS.maxProposals);
+  // 제안이 있었는데 모두 걸러졌으면 "바꿀까요?" 같은 답변을 그대로 보여주지 않는다
+  if (r.proposals.length > 0 && proposals.length === 0) {
+    return { reply: CANNOT_CHANGE_REPLY, needsClarification: false, proposals: [] };
+  }
   return { reply, needsClarification: r.needsClarification === true && proposals.length === 0, proposals };
 }
 

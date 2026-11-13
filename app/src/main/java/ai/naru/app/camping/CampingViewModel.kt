@@ -519,8 +519,10 @@ class CampingViewModel(
                 return@launch
             }
             val changes = IntentRules.resolve(reply.proposals, intentContext(now))
-            updateAssistant { it.copy(turns = it.turns + Turn(TurnRole.ASSISTANT, reply.reply), pending = changes, busy = false) }
-            if (now.voiceOn) voice.speak(reply.reply)
+            // 제안이 있었지만 규칙 검사 후 바꿀 것이 없으면 "바꿀까요?"라고 묻지 않는다 (예: 지금과 같은 값)
+            val text = if (reply.proposals.isNotEmpty() && changes.isEmpty()) NOTHING_TO_CHANGE else reply.reply
+            updateAssistant { it.copy(turns = it.turns + Turn(TurnRole.ASSISTANT, text), pending = changes, busy = false) }
+            if (now.voiceOn) voice.speak(text)
         }
     }
 
@@ -806,6 +808,7 @@ class CampingViewModel(
         const val VOICE_UNAVAILABLE = "음성 입력을 쓸 수 없어요. 글로 입력해 주세요."
         const val DONE = "바꿨어요."
         const val KEPT = "그대로 둘게요."
+        const val NOTHING_TO_CHANGE = "지금 설정과 같거나 바꿀 수 없는 값이라 그대로 둘게요."
         val DEFAULT_WAKE_AT: LocalTime = LocalTime.of(7, 0)
         const val WAKE_CHECK_INTERVAL_MS = 15_000L
     }

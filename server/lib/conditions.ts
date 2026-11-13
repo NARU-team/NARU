@@ -22,6 +22,20 @@ export interface ConditionsDeps {
   log?: (message: string) => void;
 }
 
+/**
+ * 진단용: 조석예보 원본 항목(공개 데이터, 키 없음). 응답 필드 이름 확인에 쓴다.
+ * TODO(확인 필요): 필드 이름을 확정하면 파서 후보를 줄인다.
+ */
+export async function rawTide(site: Site, deps: ConditionsDeps): Promise<unknown> {
+  if (!deps.serviceKey || !site.tideObsCode) return { error: "키 또는 조석 지점 없음" };
+  const night = nightWindow(deps.now);
+  try {
+    return { obsCode: site.tideObsCode, items: await fetchTideItems(deps.serviceKey, site.tideObsCode, night.eveningDate) };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
 export async function siteConditions(site: Site, deps: ConditionsDeps): Promise<SiteConditions> {
   const { serviceKey, now, wake, log = console.warn } = deps;
   const night = nightWindow(now);

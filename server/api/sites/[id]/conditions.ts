@@ -1,5 +1,5 @@
 import { findSite } from "../../../lib/sites.js";
-import { siteConditions } from "../../../lib/conditions.js";
+import { rawTide, siteConditions } from "../../../lib/conditions.js";
 
 /**
  * GET /api/sites/{id}/conditions?wake=HHmm — 오늘 밤 날씨·물때·일출, 내일 아침 날씨
@@ -14,11 +14,13 @@ export async function GET(request: Request): Promise<Response> {
   const wakeParam = url.searchParams.get("wake") ?? "";
   const wake = /^([01]\d|2[0-3])[0-5]\d$/.test(wakeParam) ? wakeParam : "0700";
 
-  const conditions = await siteConditions(site, {
-    serviceKey: process.env.DATA_GO_KR_SERVICE_KEY,
-    now: new Date(),
-    wake,
-  });
+  const deps = { serviceKey: process.env.DATA_GO_KR_SERVICE_KEY, now: new Date(), wake };
+  // 진단: ?debug=tide 이면 조석예보 원본 항목을 그대로 보여준다 (캐시하지 않음)
+  if (url.searchParams.get("debug") === "tide") {
+    return Response.json(await rawTide(site, deps), { headers: { "Cache-Control": "no-store" } });
+  }
+
+  const conditions = await siteConditions(site, deps);
   // 단기예보는 3시간마다 갱신되므로 10분만 캐시한다
   return Response.json(conditions, { headers: { "Cache-Control": "public, s-maxage=600" } });
 }

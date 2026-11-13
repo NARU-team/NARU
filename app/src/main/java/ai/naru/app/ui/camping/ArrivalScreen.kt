@@ -56,6 +56,9 @@ data class ArrivalActions(
     val onChangeSite: () -> Unit = {},
     val onRetry: () -> Unit = {},
     val onConfirm: () -> Unit = {},
+    /** [현재 위치로 찾기]: 권한이 없으면 요청한 뒤 위치로 찾는다 */
+    val onLocate: () -> Unit = {},
+    val onChoosePlaceType: (PlaceType) -> Unit = {},
 )
 
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -73,6 +76,9 @@ fun ArrivalScreen(
     narration: NarrationState?,
     actions: ArrivalActions,
     modifier: Modifier = Modifier,
+    locating: Boolean = false,
+    /** 시연 지역이 아닌 현재 위치: 장소 유형을 물어본다 */
+    askPlaceType: Boolean = false,
 ) {
     FigmaFrame(modifier = modifier.fillMaxSize().background(NaruTheme.colors.background)) {
         Column(
@@ -80,7 +86,11 @@ fun ArrivalScreen(
             verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
         ) {
             NaruStepHeader(title = "도착 안내 1/3", onBack = actions.onBack)
-            if (arrival == null) {
+            if (locating) {
+                Message("현재 위치를 확인하고 있어요…", "차량 위치로 오늘 밤 날씨와 물때를 찾아요.")
+            } else if (askPlaceType) {
+                PlaceTypeQuestion(actions, Modifier.weight(1f))
+            } else if (arrival == null) {
                 SitePicker(sites, sitesUnavailable, loadingSite, actions, Modifier.weight(1f))
             } else {
                 ArrivalResult(arrival, narration?.takeIf { it.moment == NarrationMoment.ARRIVAL }, actions, Modifier.weight(1f))
@@ -197,8 +207,63 @@ private fun SitePicker(sites: List<Site>, unavailable: Boolean, loading: Site?, 
                 }
             }
         }
-        NaruBottomBar(note = "고른 장소의 오늘 밤 날씨와 물때를 조회해요.") {}
+        NaruBottomBar(note = "고른 장소의 오늘 밤 날씨와 물때를 조회해요.") {
+            NaruSecondaryButton(text = "현재 위치로 찾기", onClick = actions.onLocate)
+        }
     }
+}
+
+/**
+ * 시연 지역이 아닌 곳: 좌표만으로는 해변·숲·호수를 알 수 없어 한 번 묻는다 (테마·물때 판단에 필요).
+ * 허용 여부·시설 데이터가 없어 판정은 "현장 확인 필요" 쪽으로 보수적으로 나온다.
+ */
+@Composable
+private fun PlaceTypeQuestion(actions: ArrivalActions, modifier: Modifier) {
+    val colors = NaruTheme.colors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(text = "어떤 곳인가요?", style = MaterialTheme.typography.headlineMedium, color = colors.text)
+            Text(
+                text = "현재 위치의 오늘 밤 날씨를 조회했어요. 등록된 차박 장소가 아니라 허용 여부는 현장에서 확인해 주세요.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textTertiary,
+            )
+        }
+        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+            for (type in PlaceType.entries) {
+                NaruCard(modifier = Modifier.weight(1f).fillMaxHeight(), onClick = { actions.onChoosePlaceType(type) }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(NaruSpacing.small)) {
+                        NaruIconCircle(type.icon())
+                        Text(text = type.title(), style = MaterialTheme.typography.titleLarge, color = colors.text)
+                        Text(text = type.hint(), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+                    }
+                }
+            }
+        }
+        NaruBottomBar(note = "해변을 고르면 근처 조석 예보로 물때도 확인해요.") {
+            NaruSecondaryButton(text = "시연 지역에서 고르기", onClick = actions.onChangeSite)
+        }
+    }
+}
+
+@Composable
+private fun Message(title: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(text = title, style = MaterialTheme.typography.headlineMedium, color = NaruTheme.colors.text)
+        Text(text = body, style = MaterialTheme.typography.bodyMedium, color = NaruTheme.colors.textTertiary)
+    }
+}
+
+private fun PlaceType.title() = when (this) {
+    PlaceType.BEACH -> "해변"
+    PlaceType.FOREST -> "숲"
+    PlaceType.LAKE -> "호수"
+}
+
+private fun PlaceType.hint() = when (this) {
+    PlaceType.BEACH -> "바닷가, 해수욕장"
+    PlaceType.FOREST -> "산, 캠핑장, 휴양림"
+    PlaceType.LAKE -> "호숫가, 강가, 저수지"
 }
 
 @Composable

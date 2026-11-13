@@ -69,6 +69,8 @@ data class BedtimeScreenActions(
     val onSetWakeTime: (LocalTime) -> Unit = {},
     val onNext: () -> Unit = {},
     val assistant: AssistantActions = AssistantActions(),
+    /** 음성 안내 켜기/끄기 (이슈 #44: 새 화면에서 빠졌던 스위치) */
+    val onToggleVoice: () -> Unit = {},
 )
 
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -87,6 +89,7 @@ fun BedtimeScreen(
     voiceInputAvailable: Boolean,
     actions: BedtimeScreenActions,
     modifier: Modifier = Modifier,
+    voiceOn: Boolean = true,
 ) {
     FigmaFrame(modifier = modifier.fillMaxSize().background(NaruTheme.colors.background)) {
         Column(modifier = Modifier.fillMaxSize().padding(NaruSpacing.panel), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -95,7 +98,7 @@ fun BedtimeScreen(
                 Text(text = "오늘 밤 설정을 준비하고 있어요.", style = MaterialTheme.typography.bodyLarge, color = NaruTheme.colors.textSecondary)
                 return@Column
             }
-            SuggestionPanel(bedtime, minTempC, batteryPercent, assistant, voiceInputAvailable, actions.assistant)
+            SuggestionPanel(bedtime, minTempC, batteryPercent, assistant, voiceInputAvailable, actions.assistant, voiceOn, actions.onToggleVoice)
             Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
                 TemperatureCard(bedtime, cabinTempC, actions.onSetTemperature, Modifier.weight(1.9f).fillMaxHeight())
                 WakeCard(bedtime, actions, Modifier.weight(1f).fillMaxHeight())
@@ -123,6 +126,8 @@ private fun SuggestionPanel(
     assistant: AssistantState,
     voiceInputAvailable: Boolean,
     actions: AssistantActions,
+    voiceOn: Boolean,
+    onToggleVoice: () -> Unit,
 ) {
     val colors = NaruTheme.colors
     val lastReply = assistant.turns.lastOrNull { it.role == TurnRole.ASSISTANT }?.text
@@ -141,10 +146,12 @@ private fun SuggestionPanel(
             Box(modifier = Modifier.size(32.dp).clip(NaruShapes.pill).background(colors.accent), contentAlignment = Alignment.Center) {
                 Icon(NaruIcons.Sparkle, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(18.dp))
             }
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(text = "나루 제안", style = MaterialTheme.typography.labelMedium, color = colors.accent)
                 Text(text = message, style = MaterialTheme.typography.titleMedium, color = if (assistant.notice != null) colors.warningIcon else colors.text)
             }
+            Text(text = "음성 안내", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+            NaruSwitch(checked = voiceOn, onCheckedChange = { onToggleVoice() })
         }
         if (assistant.pending.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

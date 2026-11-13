@@ -12,6 +12,7 @@ import ai.naru.app.ui.components.NaruConfirmDialog
 import ai.naru.app.ui.components.NaruIconCircle
 import ai.naru.app.ui.components.NaruPrimaryButton
 import ai.naru.app.ui.components.NaruSecondaryButton
+import ai.naru.app.ui.components.NaruSwitch
 import ai.naru.app.ui.theme.FigmaFrame
 import ai.naru.app.ui.theme.NaruIcons
 import ai.naru.app.ui.theme.NaruShapes
@@ -54,6 +55,8 @@ import java.time.format.DateTimeFormatter
 data class NightScreenActions(
     val onToggleSound: () -> Unit = {},
     val onEndNow: () -> Unit = {},
+    /** 음성 안내 켜기/끄기 */
+    val onToggleVoice: () -> Unit = {},
     val assistant: AssistantActions = AssistantActions(),
 )
 
@@ -115,6 +118,8 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                         enabled = !state.assistant.busy,
                     )
                 }
+                Text(text = "음성 안내", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary, modifier = Modifier.align(Alignment.CenterVertically))
+                NaruSwitch(checked = state.voiceOn, onCheckedChange = { actions.onToggleVoice() }, modifier = Modifier.align(Alignment.CenterVertically))
                 NaruSecondaryButton(text = if (state.soundOn) "소리 지금 끄기" else "소리 켜기", onClick = actions.onToggleSound)
                 NaruPrimaryButton(text = "차박 종료", onClick = { confirming = true }, enabled = !state.restoring)
             }

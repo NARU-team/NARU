@@ -44,4 +44,14 @@ class ServerJsonTest {
         assertNull(result.morningWeather)
         assertEquals(LocalTime.of(7, 10), result.sunrise)
     }
+
+    @Test
+    fun `위치 조회 응답 - 시연 지역이면 장소, 아니면 null`() {
+        val cond = """{"weather":null,"highTides":null,"sunrise":"07:10","morningWeather":null}"""
+        val matched = ServerJson.parseLocated("""{"site":{"id":"demo-beach","name":"태안 꽃지해수욕장 (시연)","placeType":"BEACH","permission":"ALLOWED","facilities":["화장실"]},"distanceKm":0.4,"conditions":$cond}""")
+        assertEquals("demo-beach", matched.site?.id)
+        assertEquals(LocalTime.of(7, 10), matched.conditions.sunrise)
+        val here = ServerJson.parseLocated("""{"site":null,"distanceKm":null,"conditions":$cond}""")
+        assertNull(here.site)
+    }
 }

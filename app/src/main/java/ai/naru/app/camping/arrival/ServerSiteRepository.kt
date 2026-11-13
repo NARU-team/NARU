@@ -8,6 +8,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import ai.naru.app.location.LatLng
 import java.time.LocalTime
 
 /**
@@ -26,6 +27,13 @@ class ServerSiteRepository(private val baseUrl: String) : SiteRepository {
     } catch (e: Exception) {
         Log.w(TAG, "오늘 밤 정보를 불러오지 못함: ${site.id}", e)
         SiteConditions(weather = null, highTides = null)
+    }
+
+    override suspend fun conditionsAt(location: LatLng): LocatedConditions? = try {
+        ServerJson.parseLocated(get("/api/conditions?lat=${location.lat}&lon=${location.lon}"))
+    } catch (e: Exception) {
+        Log.w(TAG, "위치로 오늘 밤 정보를 불러오지 못함", e)
+        null
     }
 
     private suspend fun get(path: String): String = withContext(Dispatchers.IO) {
@@ -64,6 +72,13 @@ object ServerJson {
                 facilities = o.getJSONArray("facilities").let { f -> (0 until f.length()).map { f.getString(it) } },
             )
         }
+    }
+
+    /** `/api/conditions?lat&lon` 응답: { site: 시연 지역 또는 null, conditions } */
+    fun parseLocated(json: String): LocatedConditions {
+        val o = JSONObject(json)
+        val site = if (o.isNull("site")) null else parseSites("[${o.getJSONObject("site")}]").first()
+        return LocatedConditions(site, parseConditions(o.getJSONObject("conditions").toString()))
     }
 
     fun parseConditions(json: String): SiteConditions {

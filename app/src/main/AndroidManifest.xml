@@ -31,6 +31,8 @@
     <!-- Android 11+ 패키지 가시성: Pleos 차량 서비스 설치 여부를 확인하려면 미리 선언해야 한다 -->
     <queries>
         <package android:name="ai.pleos.playground.service.vehicle" />
+        <!-- FusedLocation isSupported(): 위치 서비스 설치 여부 확인 (이슈 #44) -->
+        <package android:name="ai.pleos.playground.service.location.fused" />
     </queries>
 
     <application

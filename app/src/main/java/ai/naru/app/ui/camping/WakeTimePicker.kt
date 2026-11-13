@@ -32,7 +32,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import ai.naru.app.ui.components.NaruDialog
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -49,9 +49,9 @@ fun WakeTimePickerDialog(initial: LocalTime, sunrise: LocalTime?, onConfirm: (Lo
     var minute by remember { mutableIntStateOf(initial.minute) }
     var pm by remember { mutableIntStateOf(if (initial.hour >= 12) 1 else 0) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    NaruDialog(onDismiss = onDismiss, width = 600.dp) {
         Column(
-            modifier = Modifier.clip(NaruShapes.panel).background(colors.card).padding(NaruSpacing.panel),
+            modifier = Modifier.fillMaxWidth().clip(NaruShapes.panel).background(colors.card).padding(NaruSpacing.panel),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
         ) {
@@ -78,9 +78,9 @@ fun WakeTimePickerDialog(initial: LocalTime, sunrise: LocalTime?, onConfirm: (Lo
                 NaruPrimaryButton(
                     text = "이 시각에 깨우기",
                     onClick = { onConfirm(LocalTime.of((hour12 % 12) + if (pm == 1) 12 else 0, minute)) },
-                    modifier = Modifier.width(180.dp),
+                    modifier = Modifier.weight(1f),
                 )
-                NaruSecondaryButton(text = "취소", onClick = onDismiss, modifier = Modifier.width(180.dp))
+                NaruSecondaryButton(text = "취소", onClick = onDismiss, modifier = Modifier.weight(1f))
             }
         }
     }

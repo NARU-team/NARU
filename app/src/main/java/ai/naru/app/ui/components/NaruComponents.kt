@@ -36,6 +36,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 
 /**
  * 나루 공통 컴포넌트 (피그마 v2, 이슈 #29). 화면은 색·모양을 직접 정하지 않고 이 컴포넌트를 조합한다.
@@ -281,6 +286,27 @@ fun NaruBottomBar(
     }
 }
 
+/**
+ * 나루 팝업 틀. 팝업은 별도 창이라 피그마 프레임의 밀도(1dp = 1 피그마 단위)가 이어지지 않아 글자가 작아지고,
+ * 시스템 기본 폭 때문에 화면 가득 늘어났다 (실측). 부른 쪽의 밀도·글자 크기를 그대로 넘기고 폭은 직접 정한다.
+ */
+@Composable
+fun NaruDialog(onDismiss: () -> Unit, width: Dp = DIALOG_WIDTH, content: @Composable () -> Unit) {
+    val density = LocalDensity.current
+    val typography = MaterialTheme.typography
+    val colorScheme = MaterialTheme.colorScheme
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        CompositionLocalProvider(LocalDensity provides density) {
+            MaterialTheme(colorScheme = colorScheme, typography = typography) {
+                Box(modifier = Modifier.width(width)) { content() }
+            }
+        }
+    }
+}
+
+/** 피그마 "차박 종료 확인" 팝업 폭 (단위) */
+val DIALOG_WIDTH = 560.dp
+
 /** 확인 팝업: "차박을 끝낼까요?" 왼쪽 주요(실행) / 오른쪽 보조(취소) — 피그마 배치 */
 @Composable
 fun NaruConfirmDialog(
@@ -291,9 +317,9 @@ fun NaruConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    NaruDialog(onDismiss = onDismiss) {
         Column(
-            modifier = Modifier.clip(NaruShapes.panel).background(NaruTheme.colors.card).padding(NaruSpacing.panel),
+            modifier = Modifier.fillMaxWidth().clip(NaruShapes.panel).background(NaruTheme.colors.card).padding(NaruSpacing.panel),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
         ) {

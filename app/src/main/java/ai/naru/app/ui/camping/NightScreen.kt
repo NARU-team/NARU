@@ -119,19 +119,20 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                 NaruPrimaryButton(text = "차박 종료", onClick = { confirming = true }, enabled = !state.restoring)
             }
         }
-    }
-    if (confirming) {
-        NaruConfirmDialog(
-            title = "차박을 끝낼까요?",
-            message = "공조, 조명, 소리를 원래대로 되돌리고 ${settings?.wakeAt?.format(hhmm) ?: ""} 알람을 꺼요.",
-            confirmText = "차박 종료",
-            dismissText = "계속 자기",
-            onConfirm = {
-                confirming = false
-                actions.onEndNow()
-            },
-            onDismiss = { confirming = false },
-        )
+        // 팝업은 피그마 프레임 안에서 열어야 1dp = 1 피그마 단위 밀도가 팝업으로 이어진다
+        if (confirming) {
+            NaruConfirmDialog(
+                title = "차박을 끝낼까요?",
+                message = "공조, 조명, 소리를 원래대로 되돌리고 ${settings?.wakeAt?.format(hhmm) ?: ""} 알람을 꺼요.",
+                confirmText = "차박 종료",
+                dismissText = "계속 자기",
+                onConfirm = {
+                    confirming = false
+                    actions.onEndNow()
+                },
+                onDismiss = { confirming = false },
+            )
+        }
     }
 }
 

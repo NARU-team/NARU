@@ -14,10 +14,7 @@ export interface Site {
   facilities: string[];
   lat: number;
   lon: number;
-  /**
-   * 조석예보 지점 코드. 해변만 있다.
-   * TODO(확인 필요): 꽃지해수욕장에 가장 가까운 예보지점 코드를 키 발급 후 확인한다 (후보: 안흥, 보령).
-   */
+  /** 조석예보 지점 코드. 해변만 있다. */
   tideObsCode?: string;
 }
 
@@ -48,6 +45,7 @@ export const SITES: Site[] = [
     facilities: ["화장실", "샤워장"],
     lat: 36.4989,
     lon: 126.3354,
+    // 안흥(36.67, 126.13): 꽃지와 같은 서해 외해 쪽, 북쪽 약 20km (2026-11-13 응답으로 확인)
     tideObsCode: "DT_0067",
   },
 ];

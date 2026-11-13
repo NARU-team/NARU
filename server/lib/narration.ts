@@ -17,10 +17,13 @@ export type Facts = Record<string, string | number | boolean | string[] | null>;
 /** 기본 모델. 환경 변수 OPENAI_MODEL로 바꾼다. openai SDK 7.56 기준 최신 mini 모델. */
 export const DEFAULT_MODEL = "gpt-5.4-mini";
 
-/** 출력 제한 (제안값, 이슈 #23) */
+/**
+ * 출력 제한 (제안값, 이슈 #23).
+ * 아침 브리핑은 경고·날씨·배터리·실내 온도까지 사실이 4개라 한 문장 더 허용한다 (에뮬레이터 실측: 3문장 제한에 걸려 템플릿으로 대체됨).
+ */
 export const NARRATION_LIMITS = {
   maxChars: 160,
-  maxSentences: 3,
+  maxSentences: { ARRIVAL: 3, BEDTIME: 3, MORNING: 4 } satisfies Record<Moment, number>,
 };
 
 const MOMENT_GUIDE: Record<Moment, string> = {
@@ -33,7 +36,7 @@ export function instructions(moment: Moment): string {
   return [
     "너는 차박하는 운전자를 돕는 차량 음성 안내 '나루'다.",
     MOMENT_GUIDE[moment],
-    `규칙: 한국어 존댓말, ${NARRATION_LIMITS.maxSentences}문장 이하, ${NARRATION_LIMITS.maxChars}자 이하.`,
+    `규칙: 한국어 존댓말, ${NARRATION_LIMITS.maxSentences[moment]}문장 이하, ${NARRATION_LIMITS.maxChars}자 이하.`,
     "주어진 사실만 말한다. 사실에 없는 숫자·시각·장소를 만들지 않는다. 등급이나 경고를 약하게 바꾸지 않는다.",
     "소리 내어 읽을 문장이므로 이모지, 마크다운, 괄호, 목록을 쓰지 않는다. 문장만 출력한다.",
   ].join("\n");
@@ -55,12 +58,12 @@ export function validateRequest(body: unknown): string | null {
  * - 길이·문장 수 제한, 마크다운·이모지 금지
  * - 문장 속 숫자는 모두 사실(facts)에 있어야 한다 (LLM이 값을 지어내지 않았는지 확인)
  */
-export function validateOutput(text: string, facts: Facts): string | null {
+export function validateOutput(text: string, facts: Facts, moment: Moment = "ARRIVAL"): string | null {
   const t = text.replace(/\s+/g, " ").trim();
   if (!t || t.length > NARRATION_LIMITS.maxChars) return null;
   if (/[*#`_\[\]()]|\p{Extended_Pictographic}/u.test(t)) return null;
   const sentences = t.split(/(?<=[.!?。])\s*/).filter((s) => s.trim());
-  if (sentences.length > NARRATION_LIMITS.maxSentences) return null;
+  if (sentences.length > NARRATION_LIMITS.maxSentences[moment]) return null;
 
   const allowed = new Set(numbersIn(JSON.stringify(facts)));
   if (numbersIn(t).some((n) => !allowed.has(n))) return null;
@@ -94,7 +97,7 @@ export async function narrate(moment: Moment, facts: Facts, deps: NarrationDeps)
       reasoning: { effort: "low" },
       max_output_tokens: 1_000,
     });
-    const text = validateOutput(response.output_text ?? "", facts);
+    const text = validateOutput(response.output_text ?? "", facts, moment);
     if (!text) log(`멘트 검증 실패 (${moment}): ${response.output_text}`);
     return text;
   } catch (e) {

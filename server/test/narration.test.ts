@@ -15,6 +15,13 @@ test("사실에 없는 숫자를 만들면 실패", () => {
   assert.equal(validateOutput("최저기온은 5도예요.", facts), null);
 });
 
+test("아침 브리핑은 4문장까지 허용한다", () => {
+  const morning = { 브리핑: ["배터리는 68% 남았어요.", "밤사이 0%를 썼어요.", "지금 바깥은 비, 13°C예요.", "차 안은 19.1°C예요."] };
+  const text = "배터리는 68% 남았어요. 밤사이 0%를 썼어요. 바깥은 비가 오고 13°C예요. 차 안은 19.1°C예요.";
+  assert.equal(validateOutput(text, morning, "MORNING"), text);
+  assert.equal(validateOutput(text, morning, "BEDTIME"), null);
+});
+
 test("문장이 너무 많거나 길면 실패", () => {
   assert.equal(validateOutput("하나. 둘. 셋. 넷.", facts), null);
   assert.equal(validateOutput("가".repeat(161), facts), null);

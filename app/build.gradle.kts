@@ -56,8 +56,6 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    // 임시 아이콘 (피그마 SVG를 벡터 리소스로 받기 전까지, 이슈 #29)
-    implementation(libs.androidx.material.icons.core)
     debugImplementation(libs.androidx.ui.tooling)
 
     // Pleos Connect SDK

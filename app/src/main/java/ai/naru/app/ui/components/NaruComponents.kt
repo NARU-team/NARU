@@ -1,5 +1,6 @@
 package ai.naru.app.ui.components
 
+import ai.naru.app.ui.theme.NaruIcons
 import ai.naru.app.ui.theme.NaruShapes
 import ai.naru.app.ui.theme.NaruSpacing
 import ai.naru.app.ui.theme.NaruTheme
@@ -17,9 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -54,14 +52,14 @@ fun NaruStepHeader(
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로", tint = NaruTheme.colors.text)
+                Icon(NaruIcons.Back, contentDescription = "뒤로", tint = NaruTheme.colors.text)
             }
             Spacer(Modifier.size(4.dp))
         }
         Text(text = title, style = MaterialTheme.typography.titleLarge, color = NaruTheme.colors.text, modifier = Modifier.weight(1f))
         if (onClose != null) {
             IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = "닫기", tint = NaruTheme.colors.text)
+                Icon(NaruIcons.Close, contentDescription = "닫기", tint = NaruTheme.colors.text)
             }
         }
     }

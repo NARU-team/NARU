@@ -18,12 +18,13 @@ export type Facts = Record<string, string | number | boolean | string[] | null>;
 export const DEFAULT_MODEL = "gpt-5.4-mini";
 
 /**
- * 출력 제한 (제안값, 이슈 #23).
- * 아침 브리핑은 경고·날씨·배터리·실내 온도까지 사실이 4개라 한 문장 더 허용한다 (에뮬레이터 실측: 3문장 제한에 걸려 템플릿으로 대체됨).
+ * 출력 제한 (제안값, 이슈 #23·#25).
+ * - 아침: 경고·날씨·배터리·실내 온도까지 사실이 4개 (실측: 3문장 제한에 걸려 템플릿으로 대체됨)
+ * - 잠들기 전: 설정·예상 잔량·배터리 주의·인사까지 5문장 (실측: 주의를 넣으면 5문장). 주의를 빼는 것보다 길어지는 게 낫다
  */
 export const NARRATION_LIMITS = {
-  maxChars: 160,
-  maxSentences: { ARRIVAL: 3, BEDTIME: 3, MORNING: 4 } satisfies Record<Moment, number>,
+  maxChars: 180,
+  maxSentences: { ARRIVAL: 3, BEDTIME: 5, MORNING: 4 } satisfies Record<Moment, number>,
 };
 
 const MOMENT_GUIDE: Record<Moment, string> = {

@@ -10,6 +10,7 @@ import ai.naru.app.camping.arrival.title
 import ai.naru.app.camping.bedtime.BedtimeSettings
 import ai.naru.app.camping.bedtime.WakeBasis
 import ai.naru.app.camping.morning.MorningBriefing
+import ai.naru.app.camping.night.NightThresholds
 import ai.naru.app.camping.record.MorningForecast
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -63,11 +64,16 @@ object NarrationScripts {
             batteryPercent?.let { put("배터리퍼센트", it) }
             forecast?.let {
                 put("아침예상잔량퍼센트", "${it.lowPercent}~${it.highPercent}")
-                if (it.belowLimit) put("주의", "아침 예상 잔량이 배터리 하한보다 낮을 수 있음")
+                if (it.belowLimit) {
+                    put("주의", "아침에 배터리가 ${NightThresholds.BATTERY_LIMIT_PERCENT}%보다 낮아질 수 있으니 설정 온도를 조금 낮추는 걸 권해요.")
+                }
             }
         }
         val basis = if (settings.wakeBasis == WakeBasis.SUNRISE) "일출 시각인 " else ""
-        val forecastText = forecast?.let { "내일 아침 배터리는 ${it.lowPercent}에서 ${it.highPercent}퍼센트 정도로 예상돼요. " } ?: ""
+        val forecastText = forecast?.let {
+            val warning = if (it.belowLimit) "배터리 하한보다 낮아질 수 있으니 설정 온도를 조금 낮추는 걸 권해요. " else ""
+            "내일 아침 배터리는 ${it.lowPercent}에서 ${it.highPercent}퍼센트 정도로 예상돼요. $warning"
+        } ?: ""
         val template = "오늘 밤은 ${settings.theme.label()} 테마로 쉬어요. 설정 온도는 ${settings.targetTempC.formatTemp()}도이고, " +
             "${basis}${wake}에 깨워 드릴게요. ${forecastText}편히 쉬세요."
         return NarrationRequest(NarrationMoment.BEDTIME, facts, template)

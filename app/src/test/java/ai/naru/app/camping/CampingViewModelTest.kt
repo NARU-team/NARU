@@ -5,6 +5,9 @@ import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.bedtime.ControlResult
 import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.morning.RestoreReport
+import ai.naru.app.camping.narration.NarrationMoment
+import ai.naru.app.camping.narration.NarrationRepository
+import ai.naru.app.camping.narration.VoiceGuide
 import ai.naru.app.camping.night.NightSound
 import ai.naru.app.vehicle.AmbientLight
 import ai.naru.app.vehicle.FakeVehicleGateway
@@ -33,6 +36,8 @@ class CampingViewModelTest {
     private val fake = FakeVehicleGateway(targetTemperature = 22f, ambientLight = originalAmbient)
     private val sound = RecordingSound()
     private val alarm = RecordingAlarm()
+    private val narration = FakeNarration()
+    private val voice = RecordingVoice()
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -40,7 +45,7 @@ class CampingViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel(vehicle: VehicleGateway = fake) = CampingViewModel(vehicle, DemoSiteRepository(), sound, alarm)
+    private fun viewModel(vehicle: VehicleGateway = fake) = CampingViewModel(vehicle, DemoSiteRepository(), sound, alarm, narration, voice)
 
     /** 숲 캠핑장에서 24°C로 밤을 시작하기 직전까지 진행한다. */
     private fun CampingViewModel.goToBedtime() {
@@ -121,6 +126,75 @@ class CampingViewModelTest {
         assertEquals(EndReason.GEAR_LEFT_PARK, vm.state.value.lastEndReason)
         assertEquals(VehicleResult.Success(22f), vehicleState().first)
         assertFalse(sound.playing)
+    }
+
+    @Test
+    fun `도착 판정 뒤 AI 멘트를 보여주고 읽는다`() {
+        narration.reply = "숲 캠핑장은 정보 확인 단계예요."
+        val vm = viewModel()
+        vm.start()
+        vm.selectSite(vm.state.value.sites.first { it.placeType == PlaceType.FOREST })
+
+        val shown = vm.state.value.narration!!
+        assertEquals(NarrationMoment.ARRIVAL, shown.moment)
+        assertEquals("숲 캠핑장은 정보 확인 단계예요.", shown.text)
+        assertEquals(true, shown.fromAi)
+        assertEquals(listOf("숲 캠핑장은 정보 확인 단계예요."), voice.spoken)
+        // LLM에는 규칙 엔진이 정한 등급이 사실로 넘어간다
+        assertEquals("정보 확인", narration.lastFacts?.get("안내등급"))
+    }
+
+    @Test
+    fun `AI 멘트가 실패하면 준비된 문장을 읽는다`() {
+        narration.reply = null
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+
+        val shown = vm.state.value.narration!!
+        assertEquals(NarrationMoment.BEDTIME, shown.moment)
+        assertEquals(false, shown.fromAi)
+        assertEquals(true, shown.text.contains("24도"))
+        assertEquals(listOf(shown.text), voice.spoken.takeLast(1))
+    }
+
+    @Test
+    fun `음성 안내를 끄면 읽지 않는다`() {
+        val vm = viewModel()
+        vm.toggleVoice()
+        vm.goToBedtime()
+        vm.startNight()
+        assertEquals(emptyList<String>(), voice.spoken.filter { it == vm.state.value.narration?.text })
+    }
+
+    @Test
+    fun `일어나면 아침 브리핑 멘트를 읽는다`() {
+        narration.reply = null
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        vm.simulateWakeTime()
+        vm.wakeUp()
+
+        val shown = vm.state.value.narration!!
+        assertEquals(NarrationMoment.MORNING, shown.moment)
+        assertEquals(true, shown.text.contains("바깥은"))
+    }
+
+    private class FakeNarration : NarrationRepository {
+        var reply: String? = null
+        var lastFacts: Map<String, Any>? = null
+        override suspend fun narrate(moment: NarrationMoment, facts: Map<String, Any>): String? {
+            lastFacts = facts
+            return reply
+        }
+    }
+
+    private class RecordingVoice : VoiceGuide {
+        val spoken = mutableListOf<String>()
+        override fun speak(text: String) { spoken += text }
+        override fun stop() = Unit
+        override fun release() = Unit
     }
 
     private class RecordingSound : NightSound {

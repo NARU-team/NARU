@@ -10,6 +10,9 @@ import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.arrival.Precipitation
 import ai.naru.app.camping.arrival.Site
 import ai.naru.app.camping.arrival.SiteConditions
+import ai.naru.app.camping.arrival.guide
+import ai.naru.app.camping.arrival.label
+import ai.naru.app.camping.arrival.title
 import ai.naru.app.ui.theme.NaruTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -91,36 +94,10 @@ private fun ArrivalCard(arrival: ArrivalState) {
     }
 }
 
-/** 등급별 준비된 문장. 장소의 안전이나 휴식 효과를 보장하는 표현은 쓰지 않는다. */
-private fun ArrivalGrade.title() = when (this) {
-    ArrivalGrade.INFO -> "정보 확인"
-    ArrivalGrade.CHECK -> "현장 확인 필요"
-    ArrivalGrade.MOVE -> "주의 · 이동 권장"
-}
-
-private fun ArrivalGrade.guide() = when (this) {
-    ArrivalGrade.INFO -> "확인된 정보를 정리했어요. 도착 후 주변 상황도 함께 살펴봐 주세요."
-    ArrivalGrade.CHECK -> "확인되지 않은 정보가 있어요. 현장 안내판과 주변 상황을 직접 확인해 주세요."
-    ArrivalGrade.MOVE -> "주의가 필요한 정보가 있어요. 다른 장소로 이동하는 것을 권장해요."
-}
-
 private fun ArrivalGrade.containerColor() = when (this) {
     ArrivalGrade.INFO -> Color(0xFF2E5E4E)
     ArrivalGrade.CHECK -> Color(0xFF7A5A12)
     ArrivalGrade.MOVE -> Color(0xFF8C2F2F)
-}
-
-private fun ArrivalReason.label() = when (this) {
-    ArrivalReason.Prohibited -> "차박이 금지된 장소로 확인돼요"
-    ArrivalReason.PermissionUnknown -> "차박 허용 여부가 확인되지 않았어요"
-    is ArrivalReason.ExtremeCold -> "야간 최저기온 ${minTempC.format()}°C로 매우 추워요"
-    is ArrivalReason.Cold -> "야간 최저기온 ${minTempC.format()}°C로 영하예요"
-    ArrivalReason.HeavyRain -> "밤사이 강한 비 예보가 있어요"
-    ArrivalReason.Rain -> "밤사이 비 예보가 있어요"
-    ArrivalReason.StrongWind -> "밤사이 강한 바람 예보가 있어요"
-    is ArrivalReason.NightHighTide -> "밤사이 ${at.format(timeFormat)}에 만조예요"
-    ArrivalReason.WeatherUnavailable -> "날씨 정보를 불러오지 못했어요"
-    ArrivalReason.TideUnavailable -> "물때 정보를 불러오지 못했어요"
 }
 
 private fun summaryLines(site: Site, conditions: SiteConditions): List<String> = buildList {
@@ -132,26 +109,12 @@ private fun summaryLines(site: Site, conditions: SiteConditions): List<String> =
             CampingPermission.PROHIBITED -> "차박 금지 장소"
         },
     )
-    conditions.weather?.let { add("야간 최저기온 ${it.minTempC.format()}°C · ${it.precipitation.label()}") }
+    conditions.weather?.let { add("야간 최저기온 ${it.minTempC.formatTemp()}°C · ${it.precipitation.label()}") }
     if (site.placeType == PlaceType.BEACH) {
         conditions.highTides?.let { tides -> add("만조 ${tides.joinToString(", ") { it.format(timeFormat) }}") }
     }
     if (site.facilities.isNotEmpty()) add("시설: ${site.facilities.joinToString(", ")}")
 }
-
-private fun PlaceType.label() = when (this) {
-    PlaceType.BEACH -> "해변"
-    PlaceType.FOREST -> "숲"
-    PlaceType.LAKE -> "호수"
-}
-
-private fun Precipitation.label() = when (this) {
-    Precipitation.NONE -> "비 예보 없음"
-    Precipitation.RAIN -> "비 예보"
-    Precipitation.HEAVY_RAIN -> "강한 비 예보"
-}
-
-private fun Float.format(): String = if (this % 1f == 0f) toInt().toString() else "%.1f".format(this)
 
 @Preview(widthDp = 1280, heightDp = 720)
 @Composable

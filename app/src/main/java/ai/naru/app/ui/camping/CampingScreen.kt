@@ -31,6 +31,7 @@ data class CampingActions(
     val onConfirmArrival: () -> Unit = {},
     val bedtime: BedtimeActions = BedtimeActions(),
     val onToggleSound: () -> Unit = {},
+    val onToggleVoice: () -> Unit = {},
     val morning: MorningActions = MorningActions(),
     val onDismissMessage: () -> Unit = {},
     val onBack: () -> Unit = {},
@@ -66,6 +67,9 @@ fun CampingScreen(
         }
 
         Spacer(Modifier.height(8.dp))
+        state.narration?.takeIf { it.belongsTo(state.stage) }?.let {
+            NarrationCard(narration = it, voiceOn = state.voiceOn, onToggleVoice = actions.onToggleVoice)
+        }
         StageContent(state = state, actions = actions)
     }
 }

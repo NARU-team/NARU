@@ -19,6 +19,11 @@ import ai.naru.app.camping.morning.MorningLightApplier
 import ai.naru.app.camping.morning.MorningRules
 import ai.naru.app.camping.morning.RestoreReport
 import ai.naru.app.camping.morning.SettingsRestorer
+import ai.naru.app.camping.narration.NarrationMoment
+import ai.naru.app.camping.narration.NarrationRepository
+import ai.naru.app.camping.narration.NarrationRequest
+import ai.naru.app.camping.narration.NarrationScripts
+import ai.naru.app.camping.narration.VoiceGuide
 import ai.naru.app.camping.night.NightRules
 import ai.naru.app.camping.night.NightSound
 import ai.naru.app.camping.night.ThemeLightApplier
@@ -76,6 +81,20 @@ data class CampingUiState(
     val restoring: Boolean = false,
     /** 차량 설정 복구 결과. 세션이 끝난 뒤에도 남겨 두고(대기 화면 안내), 새 세션을 시작하면 지운다. */
     val restore: RestoreReport? = null,
+    /** 가장 최근 멘트 (도착·잠들기 전·기상) */
+    val narration: NarrationState? = null,
+    /** 음성 안내 켜기/끄기 */
+    val voiceOn: Boolean = true,
+)
+
+/** 멘트 하나. AI 멘트를 기다리는 동안에는 준비된 문장을 먼저 보여준다. */
+data class NarrationState(
+    val moment: NarrationMoment,
+    val text: String,
+    /** AI가 만든 문장인지 (false면 준비된 문장) */
+    val fromAi: Boolean,
+    /** AI 멘트를 기다리는 중 */
+    val pending: Boolean,
 )
 
 data class MorningState(
@@ -115,6 +134,8 @@ class CampingViewModel(
     private val siteRepository: SiteRepository,
     private val sound: NightSound,
     private val alarm: MorningAlarm,
+    private val narration: NarrationRepository,
+    private val voice: VoiceGuide,
 ) : ViewModel() {
 
     private val nightPreparer = NightPreparer(vehicle)
@@ -133,6 +154,9 @@ class CampingViewModel(
 
     /** 설정 복구 작업. 한 번만 돈다. */
     private var restoreJob: Job? = null
+
+    /** 멘트 요청. 새 멘트가 오면 이전 요청은 취소한다. */
+    private var narrationJob: Job? = null
 
     /** 복구가 끝나면 이 이유로 세션을 끝낸다 (아침에 기어가 P를 벗어난 경우). */
     private var pendingEndReason: EndReason? = null
@@ -179,6 +203,7 @@ class CampingViewModel(
             val conditions = siteRepository.conditions(site)
             val assessment = ArrivalRules.assess(site, conditions)
             _state.update { it.copy(arrival = ArrivalState(site, conditions, assessment)) }
+            narrate(NarrationScripts.arrival(site, conditions, assessment))
         }
     }
 
@@ -252,6 +277,10 @@ class CampingViewModel(
                 )
             }
             dispatch(CampingEvent.StartNight)
+            if (_state.value.stage == CampingStage.NIGHT) {
+                val state = _state.value
+                narrate(NarrationScripts.bedtime(bedtime.settings, bedtime.sunrise, state.batteryPercent))
+            }
         }
     }
 
@@ -332,6 +361,41 @@ class CampingViewModel(
         if (_state.value.stage != CampingStage.MORNING) return
         stopAlarm()
         startRestore()
+        viewModelScope.launch {
+            morningJob?.join()
+            val state = _state.value
+            if (state.stage == CampingStage.MORNING) state.morning?.briefing?.let { narrate(NarrationScripts.morning(it)) }
+        }
+    }
+
+    // --- 멘트와 음성 안내 ---
+
+    fun toggleVoice() {
+        val on = !_state.value.voiceOn
+        _state.update { it.copy(voiceOn = on) }
+        if (!on) voice.stop()
+    }
+
+    /**
+     * 준비된 문장을 먼저 보여주고, AI 멘트가 오면 바꾼다. AI가 실패하면 준비된 문장을 그대로 쓴다.
+     * 음성은 최종 문장이 정해진 뒤 한 번만 읽는다. AI 멘트는 화면·음성에만 쓰고 차량 제어로 이어지지 않는다.
+     */
+    private fun narrate(request: NarrationRequest) {
+        narrationJob?.cancel()
+        voice.stop()
+        _state.update { it.copy(narration = NarrationState(request.moment, request.template, fromAi = false, pending = true)) }
+        narrationJob = viewModelScope.launch {
+            val ai = narration.narrate(request.moment, request.facts)
+            val text = ai ?: request.template
+            _state.update { it.copy(narration = NarrationState(request.moment, text, fromAi = ai != null, pending = false)) }
+            if (_state.value.voiceOn) voice.speak(text)
+        }
+    }
+
+    private fun stopNarration() {
+        narrationJob?.cancel()
+        narrationJob = null
+        voice.stop()
     }
 
     /** "차박 마치기": 복구가 끝난 뒤에만 세션을 정상 종료한다. */
@@ -372,6 +436,7 @@ class CampingViewModel(
      * 복구가 끝날 때까지 다른 사건(배터리 하한, 기상 시각)은 받지 않는다 ([dispatch] 참고).
      */
     private fun endAfterRestore(reason: EndReason) {
+        stopNarration()
         stopAlarm()
         stopThemeSound()
         nightJob?.cancel()
@@ -413,6 +478,7 @@ class CampingViewModel(
     override fun onCleared() {
         sound.stop()
         alarm.stop()
+        voice.release()
     }
 
     private fun dispatch(event: CampingEvent) {
@@ -426,6 +492,7 @@ class CampingViewModel(
                 if (previous == CampingStage.NIGHT && result.stage != CampingStage.NIGHT) onLeaveNight()
                 if (previous != CampingStage.MORNING && result.stage == CampingStage.MORNING) onEnterMorning()
                 if (previous == CampingStage.MORNING && result.stage != CampingStage.MORNING) onLeaveMorning()
+                if (result.stage == CampingStage.IDLE) stopNarration()
             }
             is CampingTransition.RestoreThenEnd -> endAfterRestore(result.reason)
             is CampingTransition.Rejected -> {
@@ -456,6 +523,7 @@ class CampingViewModel(
                     morning = if (event is CampingEvent.Start) null else it.morning,
                     restoring = if (event is CampingEvent.Start) false else it.restoring,
                     restore = if (event is CampingEvent.Start) null else it.restore,
+                    narration = if (event is CampingEvent.Start) null else it.narration,
                 )
             }
     }

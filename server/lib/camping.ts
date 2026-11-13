@@ -6,8 +6,8 @@ import type { CampingPermission, PlaceType } from "./sites.js";
  * 한국관광공사 고캠핑 정보 조회서비스 — 위치기반 목록 (data.go.kr 15101933, 이슈 #46).
  * 요청: serviceKey, MobileOS, MobileApp, mapX(경도), mapY(위도), radius(m, 최대 20000), _type=json
  *
- * TODO(확인 필요): 공식 문서에 응답 필드 이름이 없다. 관광공사 오픈API의 흔한 이름(facltNm, induty, lctCl, sbrsCl,
- * toiletCo, swrmCo, wtrplCo, mapX, mapY, addr1, contentId)을 기준으로 너그럽게 읽고, 키 승인 후 실제 응답으로 확정한다.
+ * 응답 필드(facltNm, induty, lctCl, sbrsCl, toiletCo, swrmCo, wtrplCo, mapX, mapY, addr1, contentId)는
+ * 공식 문서에 없어 실제 응답으로 확인했다 (2026-11-14, 가평 좌표).
  */
 const ENDPOINT = "https://apis.data.go.kr/B551011/GoCamping/locationBasedList";
 

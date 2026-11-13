@@ -32,6 +32,8 @@ export interface NightWeather {
   minTempC: number;
   precipitation: Precipitation;
   strongWind: boolean;
+  /** 밤 구간 최대 풍속(m/s). 풍속 예보가 없으면 null (도착 안내 카드 문구, 이슈 #35) */
+  maxWindMs: number | null;
 }
 
 export interface MorningWeather {
@@ -93,14 +95,14 @@ export function summarizeNight(items: ForecastItem[], night: NightWindow): Night
   const heavy = inNight.some(
     (i) => i.category === "PCP" && parsePrecipitationMm(i.fcstValue) >= KMA_THRESHOLDS.heavyRainMmPerHour,
   );
-  const strongWind = inNight.some(
-    (i) => i.category === "WSD" && Number(i.fcstValue) >= KMA_THRESHOLDS.strongWindMs,
-  );
+  const winds = inNight.filter((i) => i.category === "WSD").map((i) => Number(i.fcstValue)).filter(Number.isFinite);
+  const maxWindMs = winds.length > 0 ? Math.max(...winds) : null;
 
   return {
     minTempC: Math.min(...temps),
     precipitation: heavy ? "HEAVY_RAIN" : rainy ? "RAIN" : "NONE",
-    strongWind,
+    strongWind: maxWindMs !== null && maxWindMs >= KMA_THRESHOLDS.strongWindMs,
+    maxWindMs,
   };
 }
 

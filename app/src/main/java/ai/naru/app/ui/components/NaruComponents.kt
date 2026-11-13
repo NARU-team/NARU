@@ -155,7 +155,7 @@ fun NaruChip(text: String, modifier: Modifier = Modifier, icon: ImageVector? = n
 }
 
 /** 배지 분위기 */
-enum class BadgeTone { ACCENT, WARNING, NEUTRAL }
+enum class BadgeTone { ACCENT, INFO, WARNING, NEUTRAL }
 
 /** 배지: "나루 추천 21°C"(강조), "이동 권장"(주의), "현장 확인 필요"(보통) */
 @Composable
@@ -163,6 +163,7 @@ fun NaruBadge(text: String, tone: BadgeTone, modifier: Modifier = Modifier, icon
     val colors = NaruTheme.colors
     val (bg, fg) = when (tone) {
         BadgeTone.ACCENT -> colors.accent to Color.White
+        BadgeTone.INFO -> colors.accentContainer to colors.accent
         BadgeTone.WARNING -> colors.warningBadge to colors.text
         BadgeTone.NEUTRAL -> colors.secondaryButton to colors.text
     }

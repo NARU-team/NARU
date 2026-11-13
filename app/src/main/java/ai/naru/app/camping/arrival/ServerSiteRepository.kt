@@ -74,9 +74,11 @@ object ServerJson {
                     minTempC = it.getDouble("minTempC").toFloat(),
                     precipitation = Precipitation.valueOf(it.getString("precipitation")),
                     strongWind = it.getBoolean("strongWind"),
+                    maxWindMs = if (it.isNull("maxWindMs") || !it.has("maxWindMs")) null else it.getDouble("maxWindMs").toFloat(),
                 )
             },
             highTides = o.arrayOrNull("highTides")?.let { a -> (0 until a.length()).map { LocalTime.parse(a.getString(it)) } },
+            lowTides = if (o.has("lowTides")) o.arrayOrNull("lowTides")?.let { a -> (0 until a.length()).map { LocalTime.parse(a.getString(it)) } } else null,
             sunrise = o.stringOrNull("sunrise")?.let(LocalTime::parse),
             morningWeather = o.objectOrNull("morningWeather")?.let {
                 MorningWeather(tempC = it.getDouble("tempC").toFloat(), sky = Sky.valueOf(it.getString("sky")))

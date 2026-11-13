@@ -27,6 +27,8 @@ data class NightWeather(
     val minTempC: Float,
     val precipitation: Precipitation,
     val strongWind: Boolean,
+    /** 밤 최대 풍속(m/s). 모르면 null */
+    val maxWindMs: Float? = null,
 )
 
 /** 아침 하늘 상태 (기상청 단기예보 SKY·PTY에 해당). */
@@ -53,4 +55,6 @@ data class SiteConditions(
     val highTides: List<LocalTime>?,
     val sunrise: LocalTime? = null,
     val morningWeather: MorningWeather? = null,
+    /** 밤~아침 간조 시각. 해변이 아니거나 모르면 null */
+    val lowTides: List<LocalTime>? = null,
 )

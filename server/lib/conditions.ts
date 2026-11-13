@@ -1,7 +1,7 @@
 import type { Site } from "./sites.js";
 import { toGrid } from "./kmaGrid.js";
 import { fetchForecast, summarizeMorning, summarizeNight, type MorningWeather, type NightWeather } from "./kma.js";
-import { fetchTideItems, nightHighTides } from "./tide.js";
+import { fetchTideItems, nightHighTides, nightLowTides } from "./tide.js";
 import { sunriseKst } from "./sun.js";
 import { nightWindow } from "./night.js";
 
@@ -10,6 +10,7 @@ export interface SiteConditions {
   weather: NightWeather | null;
   /** 해변이 아니면 확인하지 않으므로 null */
   highTides: string[] | null;
+  lowTides: string[] | null;
   sunrise: string | null;
   morningWeather: MorningWeather | null;
 }
@@ -45,7 +46,7 @@ export async function siteConditions(site: Site, deps: ConditionsDeps): Promise<
 
   if (!serviceKey) {
     log("DATA_GO_KR_SERVICE_KEY가 없어 날씨·물때를 불러오지 않음");
-    return { weather: null, highTides: null, sunrise, morningWeather: null };
+    return { weather: null, highTides: null, lowTides: null, sunrise, morningWeather: null };
   }
 
   const [forecast, tides] = await Promise.allSettled([
@@ -65,6 +66,7 @@ export async function siteConditions(site: Site, deps: ConditionsDeps): Promise<
   return {
     weather: items ? summarizeNight(items, night) : null,
     highTides: tides.status === "fulfilled" && tides.value ? nightHighTides(tides.value, night) : null,
+    lowTides: tides.status === "fulfilled" && tides.value ? nightLowTides(tides.value, night) : null,
     sunrise,
     morningWeather: items ? summarizeMorning(items, night, wake) : null,
   };

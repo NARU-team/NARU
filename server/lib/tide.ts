@@ -36,11 +36,20 @@ export function readTideItem(item: any): { date: string; time: string; high: boo
 
 /** 오늘 밤 구간의 만조(고조) 시각 "HH:mm" 목록 */
 export function nightHighTides(items: unknown[], night: NightWindow): string[] {
+  return nightTides(items, night, true);
+}
+
+/** 오늘 밤 구간의 간조(저조) 시각 "HH:mm" 목록 (도착 안내 카드 문구, 이슈 #35) */
+export function nightLowTides(items: unknown[], night: NightWindow): string[] {
+  return nightTides(items, night, false);
+}
+
+function nightTides(items: unknown[], night: NightWindow, high: boolean): string[] {
   const from = stamp(night.eveningDate, NIGHT_START);
   const to = stamp(night.morningDate, NIGHT_END);
   return items
     .map(readTideItem)
-    .filter((t): t is NonNullable<typeof t> => t !== null && t.high)
+    .filter((t): t is NonNullable<typeof t> => t !== null && t.high === high)
     .filter((t) => {
       const s = stamp(t.date, t.time);
       return s >= from && s <= to;

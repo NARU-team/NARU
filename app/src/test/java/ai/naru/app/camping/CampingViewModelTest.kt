@@ -386,6 +386,33 @@ class CampingViewModelTest {
     }
 
     @Test
+    fun `장소 유형을 고른 뒤 늦게 끝난 위치 조회는 화면을 덮어쓰지 않는다`() {
+        locationFake.permitted = true
+        locationFake.location = LatLng(37.5665, 126.978)
+        located = LocatedConditions(null, hereConditions)
+        // 두 번째 조회는 끝나지 않고 기다린다
+        val gate = kotlinx.coroutines.CompletableDeferred<LocatedConditions?>()
+        var calls = 0
+        val repo = object : SiteRepository by DemoSiteRepository() {
+            override suspend fun conditionsAt(location: LatLng): LocatedConditions? {
+                calls++
+                return if (calls == 1) located else gate.await()
+            }
+        }
+        val vm = CampingViewModel(fake, repo, sound, alarm, narration, voice, records, intents, speech, locationFake, clock = { now })
+        vm.start()
+        vm.locate() // 두 번째 조회 시작 (기다리는 중)
+        assertEquals(true, vm.state.value.locating)
+        // 첫 결과를 보고 고른 상황을 만든다
+        vm.changeSite()
+        vm.selectSite(vm.state.value.sites.first { it.placeType == PlaceType.FOREST })
+        val chosen = vm.state.value.arrival?.site?.id
+        gate.complete(null) // 늦게 끝남
+        assertEquals(chosen, vm.state.value.arrival?.site?.id)
+        assertEquals(false, vm.state.value.locating)
+    }
+
+    @Test
     fun `위치를 못 받으면 시연 지역 고르기로 대체한다`() {
         locationFake.permitted = true
         locationFake.location = null

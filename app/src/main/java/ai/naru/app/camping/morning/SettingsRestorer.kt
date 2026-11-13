@@ -61,7 +61,7 @@ class SettingsRestorer(private val vehicle: VehicleGateway) {
         return RestoreReport(temperature, ambient)
     }
 
-    /** 꺼진 조명은 켜짐 여부만 본다. 차량은 끌 때 밝기·색을 바꾸지 않는다. */
+    /** 켜짐 여부와 밝기를 비교한다. 꺼진 조명도 밝기를 되돌리므로 함께 본다. */
     private fun matches(actual: AmbientLight, original: AmbientLight): Boolean =
-        if (!original.on) !actual.on else actual.on && actual.brightness == original.brightness
+        actual.on == original.on && actual.brightness == original.brightness
 }

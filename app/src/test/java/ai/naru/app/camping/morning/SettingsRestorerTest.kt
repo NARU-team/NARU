@@ -35,7 +35,8 @@ class SettingsRestorerTest {
         assertEquals(RestoreReport(ControlResult.Applied, ControlResult.Applied), report)
         assertFalse(report.needsManualCheck)
         assertEquals(VehicleResult.Success(22f), fake.getTargetTemperature())
-        assertEquals(false, (fake.getAmbientLight() as VehicleResult.Success).value.on)
+        // 끄는 복구여도 밤 조명의 밝기·색이 남지 않는다
+        assertEquals(VehicleResult.Success(original.ambient!!), fake.getAmbientLight())
     }
 
     @Test

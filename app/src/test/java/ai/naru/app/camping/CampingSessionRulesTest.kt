@@ -59,8 +59,8 @@ class CampingSessionRulesTest {
     // --- 기어 이탈: 어느 단계든 종료 ---
 
     @Test
-    fun `아침 전 단계에서 기어가 P를 벗어나면 대기로 끝난다`() {
-        val activeStages = CampingStage.entries - CampingStage.IDLE - CampingStage.MORNING
+    fun `차량을 바꾸기 전 단계에서 기어가 P를 벗어나면 바로 대기로 끝난다`() {
+        val activeStages = listOf(CampingStage.ARRIVAL_CHECK, CampingStage.BEDTIME_PREP)
         for (stage in activeStages) {
             for (gear in listOf(Gear.DRIVE, Gear.REVERSE, Gear.NEUTRAL, Gear.UNKNOWN)) {
                 assertEquals(
@@ -122,25 +122,30 @@ class CampingSessionRulesTest {
             CampingTransition.MoveTo(CampingStage.IDLE, EndReason.COMPLETED),
             next(CampingStage.MORNING, CampingEvent.Restored()),
         )
-        assertTrue(next(CampingStage.NIGHT, CampingEvent.Restored()) is CampingTransition.Rejected)
+        assertTrue(next(CampingStage.BEDTIME_PREP, CampingEvent.Restored()) is CampingTransition.Rejected)
     }
 
     @Test
-    fun `아침에 기어가 P를 벗어나면 바로 끝내지 않고 복구를 먼저 한다`() {
-        for (gear in listOf(Gear.DRIVE, Gear.REVERSE, Gear.NEUTRAL, Gear.UNKNOWN)) {
-            assertEquals(
-                "아침에서 $gear",
-                CampingTransition.RestoreThenEnd(EndReason.GEAR_LEFT_PARK),
-                next(CampingStage.MORNING, CampingEvent.GearChanged(gear)),
-            )
+    fun `밤과 아침에 기어가 P를 벗어나면 바로 끝내지 않고 복구를 먼저 한다`() {
+        for (stage in listOf(CampingStage.NIGHT, CampingStage.MORNING)) {
+            for (gear in listOf(Gear.DRIVE, Gear.REVERSE, Gear.NEUTRAL, Gear.UNKNOWN)) {
+                assertEquals(
+                    "$stage 에서 $gear",
+                    CampingTransition.RestoreThenEnd(EndReason.GEAR_LEFT_PARK),
+                    next(stage, CampingEvent.GearChanged(gear)),
+                )
+            }
         }
     }
 
     @Test
     fun `기어 이탈로 복구를 마치면 기어 이탈 이유로 대기로 돌아간다`() {
-        assertEquals(
-            CampingTransition.MoveTo(CampingStage.IDLE, EndReason.GEAR_LEFT_PARK),
-            next(CampingStage.MORNING, CampingEvent.Restored(EndReason.GEAR_LEFT_PARK)),
-        )
+        for (stage in listOf(CampingStage.NIGHT, CampingStage.MORNING)) {
+            assertEquals(
+                "$stage",
+                CampingTransition.MoveTo(CampingStage.IDLE, EndReason.GEAR_LEFT_PARK),
+                next(stage, CampingEvent.Restored(EndReason.GEAR_LEFT_PARK)),
+            )
+        }
     }
 }

@@ -27,7 +27,13 @@ data class MorningActions(
 
 /** 기상 단계: 알람 끄기, 아침 브리핑, 설정 복구 결과. */
 @Composable
-fun MorningContent(morning: MorningState?, reason: EndReason?, actions: MorningActions) {
+fun MorningContent(
+    morning: MorningState?,
+    reason: EndReason?,
+    restoring: Boolean,
+    restore: RestoreReport?,
+    actions: MorningActions,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(text = "좋은 아침이에요", style = MaterialTheme.typography.headlineMedium)
 
@@ -44,15 +50,15 @@ fun MorningContent(morning: MorningState?, reason: EndReason?, actions: MorningA
                 Text(text = it.notice(subject = "아침 조명", applied = ""), style = MaterialTheme.typography.bodyLarge)
             }
         }
-        if (morning?.alarmUnavailable == true && morning.restore == null) {
+        if (morning?.alarmUnavailable == true && restore == null) {
             Text(text = "다른 소리가 재생 중이거나 알람음이 없어 알람을 울리지 못했어요.", style = MaterialTheme.typography.bodyLarge)
         }
 
         when {
             morning == null -> Unit
-            morning.restoring -> Text(text = "차량 설정을 원래대로 되돌리는 중이에요…", style = MaterialTheme.typography.titleLarge)
-            morning.restore != null -> {
-                RestoreSummary(morning.restore)
+            restoring -> Text(text = "차량 설정을 원래대로 되돌리는 중이에요…", style = MaterialTheme.typography.titleLarge)
+            restore != null -> {
+                RestoreSummary(restore)
                 Button(onClick = actions.onFinish) {
                     Text("차박 마치기", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(8.dp))
                 }
@@ -118,6 +124,8 @@ private fun MorningContentPreview() {
                 ),
             ),
             reason = EndReason.WAKE_TIME,
+            restoring = false,
+            restore = null,
             actions = MorningActions(),
         )
     }

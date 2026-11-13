@@ -67,8 +67,12 @@ data class CampingUiState(
     val wakeDateTime: LocalDateTime? = null,
     /** 밤을 시작할 때의 배터리 잔량. 아침 브리핑에서 밤사이 사용량을 구한다. */
     val nightStartBattery: Int? = null,
-    /** 기상 단계 상태. 세션이 끝난 뒤에도 남겨 두고(복구 결과 안내), 새 세션을 시작하면 지운다. */
+    /** 기상 단계 상태. 새 세션을 시작하면 지운다. */
     val morning: MorningState? = null,
+    /** 차량 설정 복구 중인지 (아침 "일어났어요" 또는 기어 이탈) */
+    val restoring: Boolean = false,
+    /** 차량 설정 복구 결과. 세션이 끝난 뒤에도 남겨 두고(대기 화면 안내), 새 세션을 시작하면 지운다. */
+    val restore: RestoreReport? = null,
 )
 
 data class MorningState(
@@ -80,10 +84,6 @@ data class MorningState(
     val lightApply: ControlResult? = null,
     /** 아침 브리핑. 만들기 전이면 null */
     val briefing: MorningBriefing? = null,
-    /** 설정 복구 중인지 */
-    val restoring: Boolean = false,
-    /** 설정 복구 결과. 복구 전이면 null */
-    val restore: RestoreReport? = null,
 )
 
 data class BedtimeState(
@@ -119,8 +119,11 @@ class CampingViewModel(
     private val morningLightApplier = MorningLightApplier(vehicle)
     private val settingsRestorer = SettingsRestorer(vehicle)
 
-    /** 밤 단계 동안만 도는 작업 (조명 적용, 기상 시각 확인). 밤을 벗어나면 취소한다. */
+    /** 밤 단계 동안만 도는 기상 시각 확인. 밤을 벗어나거나 복구를 시작하면 취소한다. */
     private var nightJob: Job? = null
+
+    /** 밤 테마 조명 적용. 복구는 이 작업이 끝난 뒤에 한다 (복구 후 테마 조명이 덮어쓰지 않게). */
+    private var themeLightJob: Job? = null
 
     /** 기상 단계 준비 작업 (조명, 브리핑). 복구는 이 작업이 끝난 뒤에 한다. */
     private var morningJob: Job? = null
@@ -221,6 +224,12 @@ class CampingViewModel(
         _state.update { it.copy(bedtime = bedtime.copy(preparing = true)) }
         viewModelScope.launch {
             val preparation = nightPreparer.prepare(bedtime.settings)
+            if (_state.value.stage != CampingStage.BEDTIME_PREP) {
+                // 차량을 준비하는 사이 세션이 끝났다 (기어 이탈). 이미 바꾼 설정을 되돌린다.
+                val report = settingsRestorer.restore(preparation.backup)
+                _state.update { it.copy(restore = report, bedtime = it.bedtime?.copy(preparing = false)) }
+                return@launch
+            }
             _state.update {
                 it.copy(
                     backup = preparation.backup,
@@ -260,10 +269,12 @@ class CampingViewModel(
         if (_state.value.soundOn) playThemeSound()
         checkBatteryLimit()
 
-        nightJob = viewModelScope.launch {
+        themeLightJob = viewModelScope.launch {
             val lightResult = themeLightApplier.apply(settings.theme)
             _state.update { it.copy(lightApply = lightResult) }
+        }
 
+        nightJob = viewModelScope.launch {
             // 앱이 켜져 있는 동안 기상 시각을 확인한다. TODO(미확정): Suspend 상태에서의 알람
             while (isActive) {
                 if (NightRules.isWakeTimeReached(LocalDateTime.now(), wakeDateTime)) {
@@ -278,6 +289,7 @@ class CampingViewModel(
     private fun onLeaveNight() {
         nightJob?.cancel()
         nightJob = null
+        themeLightJob = null
         stopThemeSound()
     }
 
@@ -311,7 +323,7 @@ class CampingViewModel(
 
     /** "차박 마치기": 복구가 끝난 뒤에만 세션을 정상 종료한다. */
     fun finishSession() {
-        if (_state.value.morning?.restore == null) return
+        if (_state.value.restore == null) return
         dispatch(CampingEvent.Restored())
     }
 
@@ -342,10 +354,16 @@ class CampingViewModel(
         stopAlarm()
     }
 
-    /** 아침에 기어가 P를 벗어났다. 복구를 먼저 마치고 [reason]으로 끝낸다. */
+    /**
+     * 밤·아침에 기어가 P를 벗어났다. 소리·알람과 기상 시각 확인을 멈추고, 복구를 먼저 마친 뒤 [reason]으로 끝낸다.
+     * 복구가 끝날 때까지 다른 사건(배터리 하한, 기상 시각)은 받지 않는다 ([dispatch] 참고).
+     */
     private fun endAfterRestore(reason: EndReason) {
         stopAlarm()
-        if (_state.value.morning?.restore != null) {
+        stopThemeSound()
+        nightJob?.cancel()
+        nightJob = null
+        if (_state.value.restore != null) {
             dispatch(CampingEvent.Restored(reason))
             return
         }
@@ -354,13 +372,14 @@ class CampingViewModel(
     }
 
     private fun startRestore() {
-        if (restoreJob != null || _state.value.morning?.restore != null) return
-        updateMorning { it.copy(restoring = true) }
+        if (restoreJob != null || _state.value.restore != null) return
+        _state.update { it.copy(restoring = true) }
         restoreJob = viewModelScope.launch {
-            // 아침 조명을 켜는 중이면 끝난 뒤에 되돌린다. 순서가 바뀌면 아침 조명이 남는다.
+            // 테마·아침 조명을 켜는 중이면 끝난 뒤에 되돌린다. 순서가 바뀌면 그 조명이 남는다.
+            themeLightJob?.join()
             morningJob?.join()
             val report = settingsRestorer.restore(_state.value.backup)
-            updateMorning { it.copy(restoring = false, restore = report) }
+            _state.update { it.copy(restoring = false, restore = report) }
             restoreJob = null
             pendingEndReason?.let { reason ->
                 pendingEndReason = null
@@ -384,6 +403,8 @@ class CampingViewModel(
     }
 
     private fun dispatch(event: CampingEvent) {
+        // 기어 이탈로 복구하는 중에는 복구 완료만 받는다. 그사이 배터리 하한·기상 시각으로 아침에 넘어가지 않게 한다.
+        if (pendingEndReason != null && event !is CampingEvent.Restored) return
         val previous = _state.value.stage
         when (val result = CampingSessionRules.next(previous, event)) {
             is CampingTransition.MoveTo -> {
@@ -420,6 +441,8 @@ class CampingViewModel(
                     wakeDateTime = if (event is CampingEvent.Start) null else it.wakeDateTime,
                     nightStartBattery = if (event is CampingEvent.Start) null else it.nightStartBattery,
                     morning = if (event is CampingEvent.Start) null else it.morning,
+                    restoring = if (event is CampingEvent.Start) false else it.restoring,
+                    restore = if (event is CampingEvent.Start) null else it.restore,
                 )
             }
     }

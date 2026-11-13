@@ -2,6 +2,8 @@ package ai.naru.app.ui.camping
 
 import ai.naru.app.camping.AssistantState
 import ai.naru.app.camping.CampingUiState
+import ai.naru.app.camping.ControlKind
+import ai.naru.app.ui.components.CardTone
 import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.bedtime.ControlResult
 import ai.naru.app.camping.intent.TurnRole
@@ -58,6 +60,12 @@ data class NightScreenActions(
     /** 음성 안내 켜기/끄기 */
     val onToggleVoice: () -> Unit = {},
     val assistant: AssistantActions = AssistantActions(),
+    /** 배터리 하한 경고 [확인] / [차박 종료] */
+    val onDismissBatteryWarning: () -> Unit = {},
+    val onEndForBattery: () -> Unit = {},
+    /** 제어 실패 [한 번 더 시도] / [이대로 쉬기] */
+    val onRetryControls: () -> Unit = {},
+    val onDismissControlAlert: () -> Unit = {},
 )
 
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -100,9 +108,14 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                     SideCard(
                         icon = NaruIcons.Battery,
                         label = "배터리",
-                        value = "${state.batteryPercent?.let { "$it%" } ?: "알 수 없음"} (하한 ${NightThresholds.BATTERY_LIMIT_PERCENT}%)",
+                        value = if (state.batteryWarned) {
+                            "하한 ${NightThresholds.BATTERY_LIMIT_PERCENT}% 도달"
+                        } else {
+                            "${state.batteryPercent?.let { "$it%" } ?: "알 수 없음"} (하한 ${NightThresholds.BATTERY_LIMIT_PERCENT}%)"
+                        },
                         note = null,
                         modifier = Modifier.weight(1f),
+                        warning = state.batteryWarned,
                     )
                 }
             }
@@ -125,6 +138,36 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
             }
         }
         // 팝업은 피그마 프레임 안에서 열어야 1dp = 1 피그마 단위 밀도가 팝업으로 이어진다
+        // 한 번에 하나만: 종료 확인 > 배터리 하한 > 제어 실패
+        if (!confirming && state.batteryWarning) {
+            val temps = listOfNotNull(
+                state.cabinTempC?.let { "실내 ${it.formatTemp()}°C" },
+                state.outsideTempC?.let { "실외 ${it.formatTemp()}°C" },
+            ).joinToString(", ")
+            NaruConfirmDialog(
+                title = "배터리가 ${NightThresholds.BATTERY_LIMIT_PERCENT}%까지 내려왔어요",
+                message = "공조를 계속 켜 두면 아침에 쓸 수 있는 배터리가 더 줄어요." + if (temps.isNotEmpty()) " 지금 ${temps}예요." else "",
+                confirmText = "차박 종료",
+                dismissText = "확인",
+                onConfirm = actions.onEndForBattery,
+                onDismiss = actions.onDismissBatteryWarning,
+            )
+        } else if (!confirming && state.controlAlert.isNotEmpty()) {
+            val subject = when {
+                state.controlAlert.size > 1 -> "공조와 조명을"
+                ControlKind.TEMPERATURE in state.controlAlert -> "공조를"
+                else -> "조명을"
+            }
+            val where = if (ControlKind.TEMPERATURE in state.controlAlert) "하단 바의 공조에서" else "차량 설정에서"
+            NaruConfirmDialog(
+                title = "$subject 바꾸지 못했어요",
+                message = "나루 화면, 소리, 알람은 적용됐어요. 한 번 더 시도해도 안 되면 $where 직접 맞춰 주세요.",
+                confirmText = "한 번 더 시도",
+                dismissText = "이대로 쉬기",
+                onConfirm = actions.onRetryControls,
+                onDismiss = actions.onDismissControlAlert,
+            )
+        }
         if (confirming) {
             NaruConfirmDialog(
                 title = "차박을 끝낼까요?",
@@ -205,11 +248,12 @@ private fun NightCard(wakeAt: LocalDateTime?, sunrise: String?, theme: PlaceType
 }
 
 @Composable
-private fun SideCard(icon: ImageVector, label: String, value: String, note: String?, modifier: Modifier) {
+private fun SideCard(icon: ImageVector, label: String, value: String, note: String?, modifier: Modifier, warning: Boolean = false) {
     val colors = NaruTheme.colors
-    NaruCard(modifier = modifier.fillMaxWidth()) {
+    val tone = if (warning) CardTone.WARNING else CardTone.DEFAULT
+    NaruCard(modifier = modifier.fillMaxWidth(), tone = tone) {
         Row(modifier = Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            NaruIconCircle(icon)
+            NaruIconCircle(icon, tone = tone)
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
                 Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text)

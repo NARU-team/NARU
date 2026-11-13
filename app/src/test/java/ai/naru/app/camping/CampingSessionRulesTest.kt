@@ -97,7 +97,7 @@ class CampingSessionRulesTest {
     @Test
     fun `밤에 배터리 하한에 도달하면 아침으로 넘어간다`() {
         assertEquals(
-            CampingTransition.MoveTo(CampingStage.MORNING, EndReason.BATTERY_LOW),
+            CampingTransition.RestoreThenEnd(EndReason.BATTERY_LOW),
             next(CampingStage.NIGHT, CampingEvent.BatteryLow),
         )
     }

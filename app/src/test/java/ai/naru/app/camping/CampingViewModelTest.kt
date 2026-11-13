@@ -284,6 +284,23 @@ class CampingViewModelTest {
     }
 
     @Test
+    fun `밤에 차박 종료를 확인하면 소리를 끄고 설정을 복구한 뒤 홈으로 가고 기록을 남긴다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        assertEquals(true, sound.playing)
+        now = now.plusHours(3)
+
+        vm.endNow()
+
+        assertEquals(CampingStage.IDLE, vm.state.value.stage)
+        assertEquals(EndReason.USER_ENDED, vm.state.value.lastEndReason)
+        assertFalse(sound.playing)
+        assertEquals(VehicleResult.Success(22f) to VehicleResult.Success(originalAmbient), vehicleState())
+        assertEquals(EndReason.USER_ENDED, vm.state.value.records.single().endReason)
+    }
+
+    @Test
     fun `밤부터는 그만두기로 끝나지 않는다`() {
         val vm = viewModel()
         vm.goToBedtime()

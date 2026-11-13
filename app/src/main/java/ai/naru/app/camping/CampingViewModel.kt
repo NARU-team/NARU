@@ -287,6 +287,9 @@ class CampingViewModel(
     /** 밤 전(도착·취침 준비)에 그만두고 홈으로. 밤부터는 처리하지 않는다 (차박 종료는 복구가 필요). */
     fun cancel() = dispatch(CampingEvent.Cancel)
 
+    /** 밤에 [차박 종료] 확인: 소리·알람을 끄고 설정을 복구한 뒤 홈으로 (이슈 #39) */
+    fun endNow() = dispatch(CampingEvent.EndNow)
+
     /** 도착 단계에서 장소를 고르면 오늘 밤 정보를 불러와 규칙으로 판정한다. */
     fun selectSite(site: Site) = loadConditions(site, retried = false)
 

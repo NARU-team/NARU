@@ -49,6 +49,9 @@ sealed interface CampingEvent {
     /** 취침 준비에서 ← : 도착 안내로 돌아간다 (피그마 v2 단계 헤더, 이슈 #37). 차량에 적용한 것이 없다. */
     data object BackToArrival : CampingEvent
 
+    /** 밤에 사용자가 [차박 종료]를 확인했다 (피그마 v2 "차박 종료 확인", 이슈 #39). 설정을 복구한 뒤 끝낸다. */
+    data object EndNow : CampingEvent
+
     /**
      * 아침 단계에서 차량 설정 복구가 끝났다.
      * @property endReason 세션을 끝내는 이유. 사용자가 마치면 COMPLETED, 기어 이탈로 복구했으면 GEAR_LEFT_PARK.
@@ -87,6 +90,9 @@ enum class EndReason {
 
     /** 밤 전에 사용자가 그만둠 */
     CANCELED,
+
+    /** 밤에 사용자가 [차박 종료]로 직접 끝냄 */
+    USER_ENDED,
 }
 
 /**
@@ -139,6 +145,7 @@ object CampingSessionRules {
             CampingStage.NIGHT -> when (event) {
                 CampingEvent.WakeTimeReached -> CampingTransition.MoveTo(CampingStage.MORNING, EndReason.WAKE_TIME)
                 CampingEvent.BatteryLow -> CampingTransition.MoveTo(CampingStage.MORNING, EndReason.BATTERY_LOW)
+                CampingEvent.EndNow -> CampingTransition.RestoreThenEnd(EndReason.USER_ENDED)
                 is CampingEvent.Restored -> CampingTransition.MoveTo(CampingStage.IDLE, event.endReason)
                 else -> reject(stage, event)
             }

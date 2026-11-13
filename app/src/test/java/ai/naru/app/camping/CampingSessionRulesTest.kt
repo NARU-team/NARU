@@ -126,6 +126,18 @@ class CampingSessionRulesTest {
     }
 
     @Test
+    fun `밤에 직접 종료하면 복구를 먼저 하고 직접 종료 이유로 끝난다`() {
+        assertEquals(CampingTransition.RestoreThenEnd(EndReason.USER_ENDED), next(CampingStage.NIGHT, CampingEvent.EndNow))
+        assertEquals(
+            CampingTransition.MoveTo(CampingStage.IDLE, EndReason.USER_ENDED),
+            next(CampingStage.NIGHT, CampingEvent.Restored(EndReason.USER_ENDED)),
+        )
+        for (stage in listOf(CampingStage.IDLE, CampingStage.ARRIVAL_CHECK, CampingStage.BEDTIME_PREP, CampingStage.MORNING)) {
+            assertTrue(next(stage, CampingEvent.EndNow) is CampingTransition.Rejected)
+        }
+    }
+
+    @Test
     fun `취침 준비에서만 도착 안내로 돌아갈 수 있다`() {
         assertEquals(CampingTransition.MoveTo(CampingStage.ARRIVAL_CHECK), next(CampingStage.BEDTIME_PREP, CampingEvent.BackToArrival))
         for (stage in listOf(CampingStage.IDLE, CampingStage.ARRIVAL_CHECK, CampingStage.NIGHT, CampingStage.MORNING)) {

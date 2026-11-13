@@ -10,6 +10,8 @@ import ai.naru.app.camping.BedtimeStep
 import ai.naru.app.ui.camping.AssistantActions
 import ai.naru.app.ui.camping.BedtimeScreen
 import ai.naru.app.ui.camping.BedtimeScreenActions
+import ai.naru.app.ui.camping.NightScreen
+import ai.naru.app.ui.camping.NightScreenActions
 import ai.naru.app.ui.camping.ThemeScreen
 import ai.naru.app.ui.camping.ThemeScreenActions
 import ai.naru.app.ui.camping.MorningActions
@@ -142,6 +144,23 @@ private fun NaruApp(app: NaruApplication) {
                         modifier = Modifier.weight(1f),
                     )
                 }
+
+                // 피그마 v2 차박 중 (이슈 #39)
+                CampingStage.NIGHT -> NightScreen(
+                    state = state,
+                    voiceInputAvailable = true,
+                    actions = NightScreenActions(
+                        onToggleSound = campingViewModel::toggleSound,
+                        onEndNow = campingViewModel::endNow,
+                        assistant = AssistantActions(
+                            onAsk = campingViewModel::ask,
+                            onToggleListening = campingViewModel::toggleListening,
+                            onApprove = campingViewModel::approveChanges,
+                            onReject = campingViewModel::rejectChanges,
+                        ),
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
 
                 else -> {
                     CampingScreen(

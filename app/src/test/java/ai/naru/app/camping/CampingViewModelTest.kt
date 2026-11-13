@@ -5,6 +5,17 @@ import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.bedtime.ControlResult
 import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.morning.RestoreReport
+import ai.naru.app.camping.intent.IntentAction
+import ai.naru.app.camping.intent.IntentContext
+import ai.naru.app.camping.intent.IntentProposal
+import ai.naru.app.camping.intent.IntentReply
+import ai.naru.app.camping.intent.IntentRepository
+import ai.naru.app.camping.intent.ProposedChange
+import ai.naru.app.camping.intent.SpeechEvent
+import ai.naru.app.camping.intent.SpeechInput
+import ai.naru.app.camping.intent.Turn
+import ai.naru.app.camping.intent.TurnRole
+import java.time.LocalTime
 import ai.naru.app.camping.narration.NarrationMoment
 import ai.naru.app.camping.narration.NarrationRepository
 import ai.naru.app.camping.narration.VoiceGuide
@@ -48,10 +59,12 @@ class CampingViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private val records = InMemorySessionRecordStore()
+    private val intents = FakeIntents()
+    private val speech = FakeSpeech()
     private var now = LocalDateTime.of(2026, 11, 13, 22, 0)
 
     private fun viewModel(vehicle: VehicleGateway = fake) =
-        CampingViewModel(vehicle, DemoSiteRepository(), sound, alarm, narration, voice, records, clock = { now })
+        CampingViewModel(vehicle, DemoSiteRepository(), sound, alarm, narration, voice, records, intents, speech, clock = { now })
 
     /** 숲 캠핑장에서 24°C로 밤을 시작하기 직전까지 진행한다. */
     private fun CampingViewModel.goToBedtime() {
@@ -238,6 +251,109 @@ class CampingViewModelTest {
         assertEquals(true, forecast!!.lowPercent <= forecast.highPercent)
         vm.clearRecords()
         assertEquals(null, vm.state.value.bedtime?.forecast)
+    }
+
+    // --- 발화 해석 ---
+
+    @Test
+    fun `제안은 승인 전에는 아무것도 바꾸지 않고, 바꾸기를 누르면 적용한다`() {
+        intents.replies += IntentReply("23도로 바꿀까요?", false, listOf(IntentProposal(IntentAction.ADJUST_TEMPERATURE, deltaC = 1f)))
+        val vm = viewModel()
+        vm.goToBedtime() // 24°C
+        vm.ask("조금 더 따뜻하게")
+
+        assertEquals(listOf(ProposedChange.Temperature(24f, 25f)), vm.state.value.assistant.pending)
+        assertEquals(24f, vm.state.value.bedtime?.settings?.targetTempC)
+
+        vm.approveChanges()
+        assertEquals(25f, vm.state.value.bedtime?.settings?.targetTempC)
+        assertEquals("바꿨어요.", vm.state.value.assistant.turns.last().text)
+    }
+
+    @Test
+    fun `취소하면 그대로 둔다`() {
+        intents.replies += IntentReply("숲 테마로 바꿀까요?", false, listOf(IntentProposal(IntentAction.SET_THEME, theme = PlaceType.LAKE)))
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.ask("호수로")
+        vm.rejectChanges()
+        assertEquals(PlaceType.FOREST, vm.state.value.bedtime?.settings?.theme)
+        assertEquals(emptyList<ProposedChange>(), vm.state.value.assistant.pending)
+    }
+
+    @Test
+    fun `멀티턴 - 앞선 대화를 함께 보내고, 단계가 바뀌면 지운다`() {
+        intents.replies += IntentReply("몇 시에 깨워 드릴까요?", true, emptyList())
+        intents.replies += IntentReply("7시 반으로 바꿀까요?", false, listOf(IntentProposal(IntentAction.SET_WAKE_TIME, time = LocalTime.of(7, 30))))
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.ask("깨워줘")
+        vm.ask("7시 반")
+
+        assertEquals(listOf(Turn(TurnRole.USER, "깨워줘"), Turn(TurnRole.ASSISTANT, "몇 시에 깨워 드릴까요?")), intents.histories.last())
+        assertEquals(listOf(ProposedChange.WakeTime(LocalTime.of(7, 0), LocalTime.of(7, 30), sunrise = false)), vm.state.value.assistant.pending)
+
+        vm.startNight()
+        assertEquals(emptyList<Turn>(), vm.state.value.assistant.turns)
+    }
+
+    @Test
+    fun `밤에 온도를 승인하면 차량에 적용하고 확인한다`() {
+        intents.replies += IntentReply("25도로 바꿀까요?", false, listOf(IntentProposal(IntentAction.SET_TEMPERATURE, celsius = 25f)))
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        vm.ask("좀 추워")
+        vm.approveChanges()
+
+        assertEquals(VehicleResult.Success(25f), runBlocking { fake.getTargetTemperature() })
+        assertEquals(ai.naru.app.camping.bedtime.ControlResult.Applied, vm.state.value.temperatureApply)
+    }
+
+    @Test
+    fun `해석에 실패하면 이해하지 못했다고 안내한다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.ask("블라블라")
+        assertEquals(true, vm.state.value.assistant.notice?.contains("이해하지 못했어요"))
+    }
+
+    @Test
+    fun `음성으로 들은 문장을 그대로 해석한다`() {
+        intents.replies += IntentReply("23도로 바꿀까요?", false, listOf(IntentProposal(IntentAction.SET_TEMPERATURE, celsius = 23f)))
+        speech.result = SpeechEvent.Final("조금 시원하게")
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.toggleListening()
+
+        assertEquals(Turn(TurnRole.USER, "조금 시원하게"), vm.state.value.assistant.turns.first())
+        assertEquals(false, vm.state.value.assistant.listening)
+    }
+
+    @Test
+    fun `음성 입력을 못 쓰면 글로 입력하라고 안내한다`() {
+        speech.result = SpeechEvent.Failed("MIC_ERROR")
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.toggleListening()
+        assertEquals(true, vm.state.value.assistant.notice?.contains("글로 입력"))
+    }
+
+    private class FakeIntents : IntentRepository {
+        override val available = true
+        val replies = ArrayDeque<IntentReply>()
+        val histories = mutableListOf<List<Turn>>()
+        override suspend fun interpret(utterance: String, history: List<Turn>, context: IntentContext): IntentReply? {
+            histories += history
+            return replies.removeFirstOrNull()
+        }
+    }
+
+    private class FakeSpeech : SpeechInput {
+        var result: SpeechEvent = SpeechEvent.Ended
+        override fun listen(onEvent: (SpeechEvent) -> Unit) = onEvent(result)
+        override fun stop() = Unit
+        override fun release() = Unit
     }
 
     private class FakeNarration : NarrationRepository {

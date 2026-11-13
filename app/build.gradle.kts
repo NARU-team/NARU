@@ -62,6 +62,7 @@ dependencies {
     implementation(libs.pleos.vehicle)
     implementation(libs.pleos.fused.location)
     implementation(libs.pleos.text.to.speech)
+    implementation(libs.pleos.speech.to.text)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

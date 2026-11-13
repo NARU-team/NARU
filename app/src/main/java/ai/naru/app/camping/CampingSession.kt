@@ -84,15 +84,16 @@ enum class EndReason {
  * - 기어가 P일 때만 세션을 시작한다.
  * - 세션 중 어느 단계든 기어가 P를 벗어나면 세션을 끝낸다.
  *   설계 문서 다이어그램은 `밤`만 다루지만, 기획서의 "P 상태에서만 휴식 세션" 정책을 따라 전 단계에 적용한다.
- * - 단, 아침 단계에서는 바로 끝내지 않고 차량 설정 복구를 먼저 한다 (이슈 #17).
- *   아침은 이미 깨어난 상태라 출발하려는 경우가 많고, 복구 없이 끝내면 밤 설정(온도·조명)이 남는다.
+ * - 단, 차량 설정을 바꾼 뒤인 밤·아침 단계에서는 바로 끝내지 않고 차량 설정 복구를 먼저 한다 (이슈 #17, #19).
+ *   복구 없이 끝내면 밤 설정(온도·조명)이 출발하는 차에 그대로 남는다.
+ *   도착·취침 준비 단계는 아직 차량을 바꾸지 않았으므로 바로 끝낸다.
  */
 object CampingSessionRules {
 
     fun next(stage: CampingStage, event: CampingEvent): CampingTransition {
         // 기어 이탈은 단계와 관계없이 가장 먼저 처리한다.
         if (event is CampingEvent.GearChanged && event.gear != Gear.PARK && stage != CampingStage.IDLE) {
-            return if (stage == CampingStage.MORNING) {
+            return if (stage in STAGES_WITH_VEHICLE_CHANGES) {
                 CampingTransition.RestoreThenEnd(EndReason.GEAR_LEFT_PARK)
             } else {
                 CampingTransition.MoveTo(CampingStage.IDLE, EndReason.GEAR_LEFT_PARK)
@@ -123,6 +124,7 @@ object CampingSessionRules {
             CampingStage.NIGHT -> when (event) {
                 CampingEvent.WakeTimeReached -> CampingTransition.MoveTo(CampingStage.MORNING, EndReason.WAKE_TIME)
                 CampingEvent.BatteryLow -> CampingTransition.MoveTo(CampingStage.MORNING, EndReason.BATTERY_LOW)
+                is CampingEvent.Restored -> CampingTransition.MoveTo(CampingStage.IDLE, event.endReason)
                 else -> reject(stage, event)
             }
 
@@ -132,6 +134,9 @@ object CampingSessionRules {
             }
         }
     }
+
+    /** 차량 설정을 바꾼 뒤라 끝내기 전에 복구가 필요한 단계 */
+    private val STAGES_WITH_VEHICLE_CHANGES = setOf(CampingStage.NIGHT, CampingStage.MORNING)
 
     private fun reject(stage: CampingStage, event: CampingEvent) =
         CampingTransition.Rejected("$stage 단계에서는 ${event::class.simpleName} 사건을 처리하지 않습니다.")

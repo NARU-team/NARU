@@ -77,7 +77,7 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
                 Text(text = "지난 세션: ${it.label()}", style = MaterialTheme.typography.bodyLarge)
             }
             // 기어 이탈로 복구 후 바로 끝난 경우 등, 직접 확인할 설정이 남았으면 여기서도 알린다.
-            state.morning?.restore?.takeIf { it.needsManualCheck }?.let { RestoreSummary(it) }
+            state.restore?.takeIf { it.needsManualCheck }?.let { RestoreSummary(it) }
             Text(text = "주차(P) 상태에서 차박 모드를 시작할 수 있어요.", style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(onClick = actions.onStart) { Text("차박 시작") }
@@ -96,7 +96,13 @@ private fun StageContent(state: CampingUiState, actions: CampingActions) {
 
         CampingStage.NIGHT -> NightContent(state = state, onToggleSound = actions.onToggleSound)
 
-        CampingStage.MORNING -> MorningContent(morning = state.morning, reason = state.lastEndReason, actions = actions.morning)
+        CampingStage.MORNING -> MorningContent(
+            morning = state.morning,
+            reason = state.lastEndReason,
+            restoring = state.restoring,
+            restore = state.restore,
+            actions = actions.morning,
+        )
     }
 }
 

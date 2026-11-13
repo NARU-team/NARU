@@ -55,4 +55,5 @@ dependencies {
     implementation(libs.pleos.text.to.speech)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

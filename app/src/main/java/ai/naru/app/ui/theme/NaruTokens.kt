@@ -42,6 +42,8 @@ data class NaruColors(
     val warningBadge: Color = Color(0xFFF8E5E3),
     val warningIcon: Color = Color(0xFFFC7C63),
     val warningIconCircle: Color = Color(0xFFFFDDD7),
+    /** 주의 카드 테두리, 주의 이름, 강한 바람 막대, 경고 팝업 아이콘 (피그마 v2 갱신) */
+    val danger: Color = Color(0xFFF2453D),
     /** 아이콘 원 (기본) */
     val iconCircle: Color = Color(0xFFEAEDF3),
     /** 세그먼트 버튼 바탕 */

@@ -90,6 +90,7 @@ fun NaruCard(
     }
     var m = modifier.clip(NaruShapes.card).background(background)
     if (tone == CardTone.SELECTED) m = m.border(2.dp, colors.accent, NaruShapes.card)
+    if (tone == CardTone.WARNING) m = m.border(2.dp, colors.danger, NaruShapes.card)
     if (onClick != null) m = m.clickable(onClick = onClick)
     Box(modifier = m.padding(contentPadding)) { content() }
 }
@@ -130,7 +131,7 @@ fun NaruInfoCard(
         Column(verticalArrangement = Arrangement.spacedBy(NaruSpacing.small)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(NaruSpacing.small)) {
                 NaruIconCircle(icon, tone = if (tone == CardTone.WARNING) CardTone.WARNING else CardTone.DEFAULT)
-                Text(text = label, style = MaterialTheme.typography.titleMedium, color = colors.textSecondary)
+                Text(text = label, style = MaterialTheme.typography.titleMedium, color = if (tone == CardTone.WARNING) colors.danger else colors.textSecondary)
             }
             Text(text = value, style = MaterialTheme.typography.headlineLarge, color = colors.text)
             description?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary) }
@@ -169,7 +170,7 @@ fun NaruBadge(text: String, tone: BadgeTone, modifier: Modifier = Modifier, icon
     val (bg, fg) = when (tone) {
         BadgeTone.ACCENT -> colors.accent to Color.White
         BadgeTone.INFO -> colors.accentContainer to colors.accent
-        BadgeTone.WARNING -> colors.warningBadge to colors.text
+        BadgeTone.WARNING -> colors.warningBadge to colors.danger
         BadgeTone.NEUTRAL -> colors.secondaryButton to colors.text
     }
     Row(
@@ -178,7 +179,7 @@ fun NaruBadge(text: String, tone: BadgeTone, modifier: Modifier = Modifier, icon
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        icon?.let { Icon(it, contentDescription = null, tint = if (tone == BadgeTone.WARNING) colors.warningIcon else fg, modifier = Modifier.size(16.dp)) }
+        icon?.let { Icon(it, contentDescription = null, tint = if (tone == BadgeTone.WARNING) colors.danger else fg, modifier = Modifier.size(16.dp)) }
         Text(text = text, style = MaterialTheme.typography.labelLarge, color = fg)
     }
 }

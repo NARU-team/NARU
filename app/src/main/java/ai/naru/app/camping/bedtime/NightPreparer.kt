@@ -16,6 +16,8 @@ data class BedtimeSettings(
     val wakeAt: LocalTime,
     val wakeBasis: WakeBasis,
     val theme: PlaceType,
+    /** 테마(소리·조명)를 켜 둘 시간(분). [ai.naru.app.camping.night.ThemeTimer.OPTIONS] 중 하나 */
+    val themeMinutes: Int = ai.naru.app.camping.night.ThemeTimer.DEFAULT_MINUTES,
 )
 
 /**

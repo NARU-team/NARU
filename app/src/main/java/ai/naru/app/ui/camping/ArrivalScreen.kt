@@ -10,7 +10,6 @@ import ai.naru.app.camping.ArrivalState
 import ai.naru.app.camping.NarrationState
 import ai.naru.app.camping.arrival.ArrivalBadge
 import ai.naru.app.camping.arrival.ArrivalCard
-import ai.naru.app.camping.arrival.ArrivalCardKind
 import ai.naru.app.camping.arrival.ArrivalPresenter
 import ai.naru.app.camping.arrival.CampingPermission
 import ai.naru.app.camping.arrival.PlaceType
@@ -23,7 +22,6 @@ import ai.naru.app.ui.components.NaruBottomBar
 import ai.naru.app.ui.components.NaruCard
 import ai.naru.app.ui.components.NaruChip
 import ai.naru.app.ui.components.NaruIconCircle
-import ai.naru.app.ui.components.NaruInfoCard
 import ai.naru.app.ui.components.NaruPrimaryButton
 import ai.naru.app.ui.components.NaruSecondaryButton
 import ai.naru.app.ui.components.NaruStepHeader
@@ -117,13 +115,13 @@ fun ArrivalScreen(
 @Composable
 private fun ArrivalResult(arrival: ArrivalState, narration: NarrationState?, actions: ArrivalActions, modifier: Modifier) {
     val colors = NaruTheme.colors
-    val p = ArrivalPresenter.present(arrival.site, arrival.conditions, arrival.assessment, arrival.retried)
+    val p = ArrivalPresenter.present(arrival.site, arrival.conditions, arrival.assessment, arrival.retried, arrival.fetchedAt?.toLocalTime())
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(NaruIcons.Location, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(16.dp))
-            val time = arrival.fetchedAt?.let { " ${it.format(hhmm)}에" } ?: ""
+            val time = arrival.fetchedAt?.let { ", ${it.format(hhmm)}" } ?: ""
             Text(
-                text = "${arrival.site.name.removeSuffix(" (시연)")}에서$time 조회했어요",
+                text = "${arrival.site.name.removeSuffix(" (시연)")}$time 조회",
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.textTertiary,
             )
@@ -138,17 +136,7 @@ private fun ArrivalResult(arrival: ArrivalState, narration: NarrationState?, act
         }
         narration?.let { NarrationLine(it) }
         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
-            for (card in p.cards) {
-                NaruInfoCard(
-                    icon = card.kind.icon(),
-                    label = card.label,
-                    value = card.value,
-                    description = card.description,
-                    source = card.source,
-                    tone = if (card.warning) CardTone.WARNING else CardTone.DEFAULT,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
-            }
+            for (card in p.cards) ArrivalInfoCard(card, Modifier.weight(1f).fillMaxHeight())
         }
         NaruBottomBar(note = p.note) {
             if (p.buttons.confirmIsPrimary) {
@@ -156,7 +144,7 @@ private fun ArrivalResult(arrival: ArrivalState, narration: NarrationState?, act
             } else {
                 NaruSecondaryButton(text = p.buttons.confirmText, onClick = actions.onConfirm)
             }
-            if (p.buttons.showRetry) NaruPrimaryButton(text = "다시 시도", onClick = actions.onRetry)
+            if (p.buttons.showRetry) NaruPrimaryButton(text = "한 번 더 불러오기", onClick = actions.onRetry)
         }
     }
 }
@@ -182,14 +170,6 @@ private fun Badge(badge: ArrivalBadge, text: String) {
         ArrivalBadge.CHECK -> NaruBadge(text, BadgeTone.NEUTRAL, icon = NaruIcons.Location)
         ArrivalBadge.MOVE -> NaruBadge(text, BadgeTone.WARNING, icon = NaruIcons.Wind)
     }
-}
-
-@Composable
-private fun ArrivalCardKind.icon(): ImageVector = when (this) {
-    ArrivalCardKind.WEATHER -> NaruIcons.Moon
-    ArrivalCardKind.TIDE -> NaruIcons.Tide
-    ArrivalCardKind.SUNRISE -> NaruIcons.Sunrise
-    ArrivalCardKind.USAGE -> NaruIcons.Warning
 }
 
 /** 차량 위치 연동 전: 시연 지역 3곳 중에서 고른다 (디자인에 없는 화면, 같은 카드 스타일) */

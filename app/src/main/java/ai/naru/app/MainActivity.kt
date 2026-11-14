@@ -122,6 +122,13 @@ private fun NaruApp(app: NaruApplication) {
                     onBack = campingViewModel::cancelWaitingForPark,
                     modifier = Modifier.weight(1f),
                 )
+                // 밤·아침에 주행을 시작해 차박을 끝냄 (피그마 v2 예외 "주행 시작 시 자동 종료")
+                state.drivingEnded && state.stage == CampingStage.IDLE -> ParkRequiredScreen(
+                    gear = state.gear,
+                    onBack = campingViewModel::cancelWaitingForPark,
+                    endedNotice = if (state.restore?.needsManualCheck == true) "차박을 끝냈어요. 일부 설정은 직접 확인해 주세요" else "차박을 끝내고 설정을 되돌렸어요",
+                    modifier = Modifier.weight(1f),
+                )
                 else -> when (state.stage) {
                 CampingStage.IDLE -> HomeScreen(
                     state = HomeState(
@@ -200,6 +207,7 @@ private fun NaruApp(app: NaruApplication) {
                             onClose = campingViewModel::cancel,
                             onSelectTheme = campingViewModel::selectTheme,
                             onStartNight = campingViewModel::startNight,
+                            onMoveThemeMinutes = campingViewModel::moveThemeMinutes,
                         ),
                         modifier = Modifier.weight(1f),
                     )
@@ -217,6 +225,9 @@ private fun NaruApp(app: NaruApplication) {
                         onEndForBattery = campingViewModel::endForBattery,
                         onRetryControls = campingViewModel::retryControls,
                         onDismissControlAlert = campingViewModel::dismissControlAlert,
+                        onTurnThemeOff = campingViewModel::turnThemeOff,
+                        onTurnThemeOn = campingViewModel::turnThemeOn,
+                        onToggleLight = campingViewModel::toggleLight,
                         assistant = AssistantActions(
                             onAsk = campingViewModel::ask,
                             onToggleListening = campingViewModel::toggleListening,

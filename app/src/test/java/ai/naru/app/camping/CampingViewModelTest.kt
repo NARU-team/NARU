@@ -117,6 +117,71 @@ class CampingViewModelTest {
         assertFalse(sound.playing)
     }
 
+    // --- 테마 끄기 (피그마 v2 갱신) ---
+
+    @Test
+    fun `테마를 끄면 소리를 멈추고 조명만 원래대로, 공조와 밤은 그대로`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        assertTrue(sound.playing)
+        assertEquals(now.plusMinutes(60), vm.state.value.themeEndsAt)
+
+        vm.turnThemeOff()
+
+        val state = vm.state.value
+        assertEquals(CampingStage.NIGHT, state.stage)
+        assertFalse(state.themeOn)
+        assertFalse(sound.playing)
+        assertEquals(VehicleResult.Success(24f) to VehicleResult.Success(originalAmbient), vehicleState())
+
+        vm.turnThemeOn()
+        assertTrue(vm.state.value.themeOn)
+        assertTrue(sound.playing)
+        assertTrue(vehicleState().second != VehicleResult.Success(originalAmbient))
+    }
+
+    @Test
+    fun `테마 종료 시간은 30·60·90분 중에서 고르고 밤을 시작하면 그 시각에 꺼지게 잡는다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.goToThemeStep()
+        vm.moveThemeMinutes(1)
+        vm.moveThemeMinutes(1)
+        assertEquals(90, vm.state.value.bedtime?.settings?.themeMinutes)
+        vm.moveThemeMinutes(-2)
+        assertEquals(30, vm.state.value.bedtime?.settings?.themeMinutes)
+        vm.startNight()
+        assertEquals(now.plusMinutes(30), vm.state.value.themeEndsAt)
+    }
+
+    @Test
+    fun `조명 칩을 끄면 원래 조명으로, 다시 켜면 테마 조명으로`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        vm.toggleLight()
+        assertFalse(vm.state.value.lightOn)
+        assertEquals(VehicleResult.Success(originalAmbient), vehicleState().second)
+        vm.toggleLight()
+        assertTrue(vm.state.value.lightOn)
+        assertTrue(vehicleState().second != VehicleResult.Success(originalAmbient))
+    }
+
+    @Test
+    fun `밤에 주행을 시작하면 끝낸 뒤 안내 화면, P가 되면 홈으로 (다시 시작하지 않는다)`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        fake.setGear(Gear.DRIVE)
+        assertTrue(vm.state.value.drivingEnded)
+        assertFalse(vm.state.value.waitingForPark)
+
+        fake.setGear(Gear.PARK)
+        assertFalse(vm.state.value.drivingEnded)
+        assertEquals(CampingStage.IDLE, vm.state.value.stage)
+    }
+
     // --- 예외 화면 ---
 
     @Test

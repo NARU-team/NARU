@@ -29,9 +29,12 @@ import androidx.compose.ui.unit.dp
 /**
  * 피그마 v2 예외 "주차(P) 상태가 아닐 때" (기획서: 차량이 주차(P) 상태일 때만 휴식 세션 시작).
  * 이 화면에서 기어가 P가 되면 ViewModel이 바로 이어서 시작한다.
+ *
+ * [endedNotice]가 있으면 예외 "주행 시작 시 자동 종료": 밤·아침에 주행을 시작해 설정을 되돌리고 끝낸 뒤라
+ * 이어서 시작하지 않고, 아래에 결과 안내를 띄운다.
  */
 @Composable
-fun ParkRequiredScreen(gear: Gear, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ParkRequiredScreen(gear: Gear, onBack: () -> Unit, modifier: Modifier = Modifier, endedNotice: String? = null) {
     val colors = NaruTheme.colors
     FigmaFrame(modifier = modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize().padding(NaruSpacing.panel)) {
@@ -46,13 +49,24 @@ fun ParkRequiredScreen(gear: Gear, onBack: () -> Unit, modifier: Modifier = Modi
                         modifier = Modifier.clip(NaruShapes.pill).background(colors.segment).padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                     Text(text = "주차(P) 상태에서만 쉴 수 있어요", style = MaterialTheme.typography.headlineMedium, color = colors.text)
-                    Text(
-                        text = "차를 세우고 기어를 P에 두면 여기서 바로 이어서 시작해요",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.textTertiary,
-                        textAlign = TextAlign.Center,
-                    )
+                    if (endedNotice == null) {
+                        Text(
+                            text = "차를 세우고 기어를 P에 두면 여기서 바로 이어서 시작해요",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textTertiary,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
+            }
+            endedNotice?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.onPrimaryButton,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).clip(NaruShapes.button)
+                        .background(colors.primaryButton).padding(horizontal = 24.dp, vertical = 12.dp),
+                )
             }
         }
     }

@@ -149,6 +149,7 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                 dismissText = "확인",
                 onConfirm = actions.onEndForBattery,
                 onDismiss = actions.onDismissBatteryWarning,
+                warning = true,
             )
         } else if (!confirming && state.controlAlert.isNotEmpty()) {
             val subject = when {
@@ -164,6 +165,7 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                 dismissText = "이대로 쉬기",
                 onConfirm = actions.onRetryControls,
                 onDismiss = actions.onDismissControlAlert,
+                warning = true,
             )
         }
         if (confirming) {
@@ -290,8 +292,8 @@ private fun ThemeSideCard(state: CampingUiState, actions: NightScreenActions, mo
     NaruCard(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NaruIconCircle(NaruIcons.Tide)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     Text(text = "${settings?.theme?.themeLabel() ?: ""} 테마", style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
                     Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text)
                     note?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.warningIcon) }
@@ -315,13 +317,13 @@ private fun ToggleChip(text: String, on: Boolean, onClick: () -> Unit, enabled: 
     val colors = NaruTheme.colors
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelMedium,
         color = if (on) colors.text else colors.textSecondary,
         modifier = Modifier.clip(NaruShapes.button)
             .background(if (on) colors.card else colors.secondaryButton)
             .border(1.dp, if (on) colors.segment else Color.Transparent, NaruShapes.button)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
     )
 }
 

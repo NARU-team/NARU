@@ -317,6 +317,8 @@ fun NaruConfirmDialog(
     dismissText: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    /** 경고 팝업이면 제목 위에 빨간 느낌표 (피그마 v2 갱신: 배터리 하한, 제어 실패) */
+    warning: Boolean = false,
 ) {
     NaruDialog(onDismiss = onDismiss) {
         Column(
@@ -324,6 +326,14 @@ fun NaruConfirmDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
         ) {
+            if (warning) {
+                Box(
+                    modifier = Modifier.size(40.dp).clip(NaruShapes.pill).background(NaruTheme.colors.danger),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = "!", style = MaterialTheme.typography.titleLarge, color = Color.White)
+                }
+            }
             Text(text = title, style = MaterialTheme.typography.titleLarge, color = NaruTheme.colors.text)
             Text(text = message, style = MaterialTheme.typography.bodyLarge, color = NaruTheme.colors.textSecondary, textAlign = TextAlign.Center)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

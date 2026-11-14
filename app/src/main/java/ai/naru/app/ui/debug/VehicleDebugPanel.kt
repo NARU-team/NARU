@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,18 +39,19 @@ fun VehicleDebugPanel(
 ) {
     Surface(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f),
         tonalElevation = 2.dp,
+        shape = RoundedCornerShape(12.dp),
     ) {
         // 접어 두면 한 줄만 차지한다 (펼친 채로 두면 위 화면이 줄고 아래가 잘려 보였음)
         var expanded by rememberSaveable { mutableStateOf(false) }
         Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = if (expanded) 12.dp else 4.dp),
+            modifier = Modifier.padding(horizontal = if (expanded) 16.dp else 2.dp, vertical = if (expanded) 12.dp else 0.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val source = if (fake != null) "Fake 차량" else "실제 차량 · 기어·배터리는 Virtual Console에서"
             TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                Text(text = "${if (expanded) "▾" else "▸"} 개발용 조작 ($source)", style = MaterialTheme.typography.labelLarge)
+                Text(text = if (expanded) "▾ 개발용 조작 ($source)" else "▸ 개발용", style = MaterialTheme.typography.labelMedium)
             }
             if (!expanded) return@Column
             if (fake != null) {

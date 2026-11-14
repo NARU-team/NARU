@@ -29,7 +29,7 @@ private fun SessionRecord.summary(): String {
     val used = batteryUsed?.let { if (it >= 0) "밤사이 $it% 사용" else "충전됨" } ?: "배터리 기록 없음"
     val hours = (nightHours * 10).roundToInt() / 10.0
     val ended = when (endReason) {
-        EndReason.BATTERY_LOW -> " · 배터리 하한으로 기상"
+        EndReason.BATTERY_LOW -> " · 배터리 하한으로 종료"
         EndReason.GEAR_LEFT_PARK -> " · 기어 변경으로 종료"
         else -> ""
     }

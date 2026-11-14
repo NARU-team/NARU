@@ -21,6 +21,7 @@ import ai.naru.app.ui.debug.VehicleDebugPanel
 import ai.naru.app.camping.CampingStage
 import ai.naru.app.location.LocationGateway
 import ai.naru.app.ui.home.OnboardingScreen
+import ai.naru.app.ui.camping.ParkRequiredScreen
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.remember
@@ -116,6 +117,11 @@ private fun NaruApp(app: NaruApplication) {
                     },
                     modifier = Modifier.weight(1f),
                 )
+                state.waitingForPark -> ParkRequiredScreen(
+                    gear = state.gear,
+                    onBack = campingViewModel::cancelWaitingForPark,
+                    modifier = Modifier.weight(1f),
+                )
                 else -> when (state.stage) {
                 CampingStage.IDLE -> HomeScreen(
                     state = HomeState(
@@ -207,6 +213,10 @@ private fun NaruApp(app: NaruApplication) {
                         onToggleSound = campingViewModel::toggleSound,
                         onEndNow = campingViewModel::endNow,
                         onToggleVoice = campingViewModel::toggleVoice,
+                        onDismissBatteryWarning = campingViewModel::dismissBatteryWarning,
+                        onEndForBattery = campingViewModel::endForBattery,
+                        onRetryControls = campingViewModel::retryControls,
+                        onDismissControlAlert = campingViewModel::dismissControlAlert,
                         assistant = AssistantActions(
                             onAsk = campingViewModel::ask,
                             onToggleListening = campingViewModel::toggleListening,

@@ -34,7 +34,10 @@ sealed interface CampingEvent {
     /** 기상 시각이 됐다 (일출 연계 또는 직접 설정). */
     data object WakeTimeReached : CampingEvent
 
-    /** 배터리가 하한에 도달했다. 하한 판정은 규칙 엔진이 하고, 여기서는 결과만 받는다. */
+    /**
+     * 배터리 하한 경고에서 사용자가 [차박 종료]를 골랐다 (피그마 v2 예외 "배터리 하한 경고").
+     * 하한 판정은 규칙 엔진이 하고, 경고 팝업은 ViewModel이 띄운다. 설정을 복구한 뒤 끝낸다.
+     */
     data object BatteryLow : CampingEvent
 
     /** 기어가 바뀌었다. */
@@ -144,7 +147,7 @@ object CampingSessionRules {
 
             CampingStage.NIGHT -> when (event) {
                 CampingEvent.WakeTimeReached -> CampingTransition.MoveTo(CampingStage.MORNING, EndReason.WAKE_TIME)
-                CampingEvent.BatteryLow -> CampingTransition.MoveTo(CampingStage.MORNING, EndReason.BATTERY_LOW)
+                CampingEvent.BatteryLow -> CampingTransition.RestoreThenEnd(EndReason.BATTERY_LOW)
                 CampingEvent.EndNow -> CampingTransition.RestoreThenEnd(EndReason.USER_ENDED)
                 is CampingEvent.Restored -> CampingTransition.MoveTo(CampingStage.IDLE, event.endReason)
                 else -> reject(stage, event)

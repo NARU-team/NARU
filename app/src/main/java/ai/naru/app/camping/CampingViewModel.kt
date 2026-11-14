@@ -1,5 +1,6 @@
 package ai.naru.app.camping
 
+import ai.naru.app.camping.night.NightThresholds
 import ai.naru.app.camping.arrival.ArrivalAssessment
 import ai.naru.app.camping.arrival.ArrivalRules
 import ai.naru.app.camping.arrival.Site
@@ -70,9 +71,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** 실패를 알릴 차량 제어 (피그마 v2 예외 "차량 제어 실패") */
+enum class ControlKind { TEMPERATURE, LIGHT }
+
 /** 차박 화면이 그릴 내용 전부. 화면은 이 값만 보고 그린다. */
 data class CampingUiState(
     val stage: CampingStage = CampingStage.IDLE,
+    /** 시작을 눌렀지만 P가 아니라 기다리는 중. P가 되면 바로 이어서 시작한다 (피그마 v2 예외 "주차(P) 상태가 아닐 때") */
+    val waitingForPark: Boolean = false,
+    /** 밤: 배터리 하한 경고 팝업을 보여 주는 중 */
+    val batteryWarning: Boolean = false,
+    /** 밤: 이번 밤에 하한 경고를 이미 했는지 (한 번만 알린다) */
+    val batteryWarned: Boolean = false,
+    /** 밤: 실패를 알릴 차량 제어. 비어 있으면 팝업 없음 */
+    val controlAlert: Set<ControlKind> = emptySet(),
+    /** 밤: 실패한 제어를 이미 한 번 다시 시도했는지 (자동 반복 제한, 기획서) */
+    val controlRetried: Boolean = false,
     val gear: Gear = Gear.UNKNOWN,
     val batteryPercent: Int? = null,
     /** 홈 화면 칩: 실내·바깥 온도. 모르면 null (칩 숨김) */
@@ -274,6 +288,11 @@ class CampingViewModel(
             vehicle.gear.collect { gear ->
                 _state.update { it.copy(gear = gear) }
                 dispatch(CampingEvent.GearChanged(gear))
+                // P를 기다리던 중이면 여기서 바로 이어서 시작한다
+                if (gear == Gear.PARK && _state.value.waitingForPark && _state.value.stage == CampingStage.IDLE) {
+                    _state.update { it.copy(waitingForPark = false) }
+                    start()
+                }
             }
         }
         viewModelScope.launch {
@@ -315,7 +334,13 @@ class CampingViewModel(
     // --- 사용자 동작 ---
 
     fun start() {
-        dispatch(CampingEvent.Start(_state.value.gear))
+        val state = _state.value
+        if (state.stage == CampingStage.IDLE && state.gear != Gear.PARK) {
+            // 거절 문구 대신 P를 기다리는 화면을 보여 준다
+            _state.update { it.copy(waitingForPark = true, message = null) }
+            return
+        }
+        dispatch(CampingEvent.Start(state.gear))
         if (_state.value.stage == CampingStage.ARRIVAL_CHECK) locate()
     }
 
@@ -390,6 +415,45 @@ class CampingViewModel(
 
     /** 밤에 [차박 종료] 확인: 소리·알람을 끄고 설정을 복구한 뒤 홈으로 (이슈 #39) */
     fun endNow() = dispatch(CampingEvent.EndNow)
+
+    /** P 기다리기 화면에서 ← : 홈으로 */
+    fun cancelWaitingForPark() = _state.update { it.copy(waitingForPark = false) }
+
+    /** 배터리 하한 경고 [확인]: 그대로 계속 쉰다 */
+    fun dismissBatteryWarning() = _state.update { it.copy(batteryWarning = false) }
+
+    /** 배터리 하한 경고 [차박 종료]: 설정을 복구하고 끝낸다 */
+    fun endForBattery() {
+        _state.update { it.copy(batteryWarning = false) }
+        dispatch(CampingEvent.BatteryLow)
+    }
+
+    /** 제어 실패 [이대로 쉬기] */
+    fun dismissControlAlert() = _state.update { it.copy(controlAlert = emptySet()) }
+
+    /** 제어 실패 [한 번 더 시도]: 실패한 제어만 한 번 더. 또 실패하면 카드에만 안내한다 */
+    fun retryControls() {
+        val kinds = _state.value.controlAlert
+        val settings = _state.value.bedtime?.settings ?: return
+        _state.update { it.copy(controlAlert = emptySet(), controlRetried = true) }
+        viewModelScope.launch {
+            if (ControlKind.TEMPERATURE in kinds) {
+                val result = nightPreparer.applyTemperature(settings.targetTempC)
+                if (_state.value.stage == CampingStage.NIGHT) _state.update { it.copy(temperatureApply = result) }
+            }
+            if (ControlKind.LIGHT in kinds) {
+                val result = themeLightApplier.apply(settings.theme)
+                if (_state.value.stage == CampingStage.NIGHT) _state.update { it.copy(lightApply = result) }
+            }
+        }
+    }
+
+    /** 제어가 실패했으면(미지원 제외) 아직 다시 시도하지 않았을 때 팝업으로 알린다 */
+    private fun noteControl(kind: ControlKind, result: ControlResult?) {
+        if (result is ControlResult.Failed && !_state.value.controlRetried) {
+            _state.update { it.copy(controlAlert = it.controlAlert + kind) }
+        }
+    }
 
     /** 도착 단계에서 장소를 고르면 오늘 밤 정보를 불러와 규칙으로 판정한다. */
     fun selectSite(site: Site) {
@@ -539,6 +603,7 @@ class CampingViewModel(
                 )
             }
             dispatch(CampingEvent.StartNight)
+            noteControl(ControlKind.TEMPERATURE, preparation.temperature)
             if (_state.value.stage == CampingStage.NIGHT) {
                 val state = _state.value
                 narrate(NarrationScripts.bedtime(bedtime.settings, bedtime.sunrise, state.batteryPercent, state.bedtime?.forecast))
@@ -674,6 +739,7 @@ class CampingViewModel(
         themeLightJob = viewModelScope.launch {
             val lightResult = themeLightApplier.apply(settings.theme)
             _state.update { it.copy(lightApply = lightResult) }
+            noteControl(ControlKind.LIGHT, lightResult)
         }
 
         nightJob = viewModelScope.launch {
@@ -694,14 +760,19 @@ class CampingViewModel(
         nightJob?.cancel()
         nightJob = null
         themeLightJob = null
+        _state.update { it.copy(batteryWarning = false, controlAlert = emptySet()) }
         stopThemeSound()
     }
 
     /** 밤 단계에서 배터리가 하한에 닿으면 경고와 함께 아침으로 넘긴다. */
     private fun checkBatteryLimit() {
         val state = _state.value
-        if (state.stage == CampingStage.NIGHT && NightRules.isBatteryAtLimit(state.batteryPercent)) {
-            dispatch(CampingEvent.BatteryLow)
+        if (state.stage == CampingStage.NIGHT && !state.batteryWarned && NightRules.isBatteryAtLimit(state.batteryPercent)) {
+            // 경고만 하고 계속 쉴지는 사용자가 고른다 (기획서 "배터리 하한 도달 시 경고", 피그마 v2 예외).
+            // 자는 중일 수 있어 음성 안내도 한다 (네트워크·LLM 없이 고정 문장)
+            _state.update { it.copy(batteryWarning = true, batteryWarned = true) }
+            refreshHomeStatus()
+            if (state.voiceOn) voice.speak(BATTERY_WARNING_SPEECH.format(NightThresholds.BATTERY_LIMIT_PERCENT))
         }
     }
 
@@ -822,6 +893,7 @@ class CampingViewModel(
                 if (_state.value.stage == CampingStage.NIGHT) {
                     val result = nightPreparer.applyTemperature(change.to)
                     _state.update { it.copy(temperatureApply = result) }
+                    noteControl(ControlKind.TEMPERATURE, result)
                 }
             }
             is ProposedChange.WakeTime -> updateBedtime {
@@ -991,6 +1063,10 @@ class CampingViewModel(
                 if (result.stage == CampingStage.IDLE) {
                     stopNarration()
                     refreshHomeStatus()
+                    // 도착·취침 준비 중 기어가 P를 벗어나면 P 기다리기 화면으로 (다시 P가 되면 처음부터 이어서)
+                    if (result.reason == EndReason.GEAR_LEFT_PARK && previous in setOf(CampingStage.ARRIVAL_CHECK, CampingStage.BEDTIME_PREP)) {
+                        _state.update { it.copy(waitingForPark = true) }
+                    }
                 }
                 if (result.stage != previous) resetAssistant()
                 if (result.stage == CampingStage.IDLE && previous in setOf(CampingStage.NIGHT, CampingStage.MORNING)) {
@@ -1012,6 +1088,9 @@ class CampingViewModel(
         _state.update {
                 it.copy(
                     stage = result.stage,
+                    waitingForPark = false,
+                    batteryWarned = if (event is CampingEvent.Start) false else it.batteryWarned,
+                    controlRetried = if (event is CampingEvent.Start) false else it.controlRetried,
                     // 새 세션을 시작하면 지난 종료 이유는 지운다.
                     lastEndReason = if (event is CampingEvent.Start) null else result.reason ?: it.lastEndReason,
                     message = null,
@@ -1062,5 +1141,6 @@ class CampingViewModel(
         const val NOTHING_TO_CHANGE = "지금 설정과 같거나 바꿀 수 없는 값이라 그대로 둘게요."
         val DEFAULT_WAKE_AT: LocalTime = LocalTime.of(7, 0)
         const val WAKE_CHECK_INTERVAL_MS = 15_000L
+        const val BATTERY_WARNING_SPEECH = "배터리가 %d퍼센트까지 내려왔어요. 화면에서 계속 쉴지 차박을 끝낼지 골라 주세요."
     }
 }

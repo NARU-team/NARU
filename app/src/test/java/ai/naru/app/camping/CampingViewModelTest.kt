@@ -7,6 +7,7 @@ import ai.naru.app.camping.morning.MorningAlarm
 import ai.naru.app.camping.morning.RestoreReport
 import ai.naru.app.camping.intent.IntentAction
 import ai.naru.app.camping.arrival.LocatedConditions
+import ai.naru.app.camping.ControlKind
 import ai.naru.app.camping.arrival.NearbyPlace
 import ai.naru.app.camping.arrival.SiteConditions
 import ai.naru.app.camping.arrival.SiteRepository
@@ -43,6 +44,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -113,6 +115,100 @@ class CampingViewModelTest {
         assertEquals(RestoreReport(ControlResult.Applied, ControlResult.Applied), state.restore)
         assertEquals(VehicleResult.Success(22f) to VehicleResult.Success(originalAmbient), vehicleState())
         assertFalse(sound.playing)
+    }
+
+    // --- 예외 화면 ---
+
+    @Test
+    fun `P가 아닐 때 시작하면 기다렸다가 P가 되면 바로 이어서 시작한다`() {
+        fake.setGear(Gear.DRIVE)
+        val vm = viewModel()
+        vm.start()
+        assertEquals(true, vm.state.value.waitingForPark)
+        assertEquals(CampingStage.IDLE, vm.state.value.stage)
+        assertEquals(null, vm.state.value.message)
+
+        fake.setGear(Gear.PARK)
+        assertEquals(false, vm.state.value.waitingForPark)
+        assertEquals(CampingStage.ARRIVAL_CHECK, vm.state.value.stage)
+    }
+
+    @Test
+    fun `P 기다리기를 취소하면 P가 돼도 시작하지 않는다`() {
+        fake.setGear(Gear.DRIVE)
+        val vm = viewModel()
+        vm.start()
+        vm.cancelWaitingForPark()
+        fake.setGear(Gear.PARK)
+        assertEquals(CampingStage.IDLE, vm.state.value.stage)
+    }
+
+    @Test
+    fun `도착 안내 중 기어가 P를 벗어나면 P 기다리기 화면으로 간다`() {
+        val vm = viewModel()
+        vm.start()
+        fake.setGear(Gear.DRIVE)
+        assertEquals(CampingStage.IDLE, vm.state.value.stage)
+        assertEquals(true, vm.state.value.waitingForPark)
+        fake.setGear(Gear.PARK)
+        assertEquals(CampingStage.ARRIVAL_CHECK, vm.state.value.stage)
+    }
+
+    @Test
+    fun `배터리 하한이면 밤을 유지한 채 한 번 경고하고, 확인하면 계속 쉰다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        fake.setBatteryPercent(20)
+        assertEquals(CampingStage.NIGHT, vm.state.value.stage)
+        assertEquals(true, vm.state.value.batteryWarning)
+        assertTrue(voice.spoken.last().contains("20퍼센트"))
+
+        vm.dismissBatteryWarning()
+        fake.setBatteryPercent(19)
+        assertEquals(false, vm.state.value.batteryWarning) // 한 번만
+        assertEquals(true, vm.state.value.batteryWarned)
+        assertEquals(CampingStage.NIGHT, vm.state.value.stage)
+    }
+
+    @Test
+    fun `배터리 하한 경고에서 차박 종료를 고르면 설정을 복구하고 끝낸다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        vm.startNight()
+        fake.setBatteryPercent(20)
+        vm.endForBattery()
+        val state = vm.state.value
+        assertEquals(CampingStage.IDLE, state.stage)
+        assertEquals(EndReason.BATTERY_LOW, state.lastEndReason)
+        assertEquals(VehicleResult.Success(22f) to VehicleResult.Success(originalAmbient), vehicleState())
+        assertFalse(sound.playing)
+    }
+
+    @Test
+    fun `공조 제어가 실패하면 알리고 한 번만 다시 시도한다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        fake.nextFailure = ai.naru.app.vehicle.FailureReason.CONNECTION
+        vm.startNight()
+        assertEquals(setOf(ControlKind.TEMPERATURE), vm.state.value.controlAlert)
+
+        fake.nextFailure = ai.naru.app.vehicle.FailureReason.CONNECTION
+        vm.retryControls()
+        assertEquals(true, vm.state.value.controlRetried)
+        assertTrue(vm.state.value.temperatureApply is ControlResult.Failed)
+        assertEquals(emptySet<ControlKind>(), vm.state.value.controlAlert) // 또 실패해도 팝업은 다시 띄우지 않는다
+    }
+
+    @Test
+    fun `다시 시도해서 성공하면 반영된다`() {
+        val vm = viewModel()
+        vm.goToBedtime()
+        fake.nextFailure = ai.naru.app.vehicle.FailureReason.CONNECTION
+        vm.startNight()
+        vm.retryControls()
+        assertEquals(ControlResult.Applied, vm.state.value.temperatureApply)
+        assertEquals(VehicleResult.Success(24f), vehicleState().first)
     }
 
     @Test

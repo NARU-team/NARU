@@ -29,7 +29,12 @@ data class NightWeather(
     val strongWind: Boolean,
     /** 밤 최대 풍속(m/s). 모르면 null */
     val maxWindMs: Float? = null,
+    /** 밤 3시간 간격 예보 (18·21·00·03·06시). 도착 안내 막대그래프용, 없으면 비어 있다 */
+    val hourly: List<HourlyForecast> = emptyList(),
 )
+
+/** 한 시각의 기온·풍속 예보. 모르는 값은 null */
+data class HourlyForecast(val time: LocalTime, val tempC: Float?, val windMs: Float?)
 
 /** 아침 하늘 상태 (기상청 단기예보 SKY·PTY에 해당). */
 enum class Sky { CLEAR, CLOUDY, OVERCAST, RAIN, SNOW }

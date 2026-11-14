@@ -43,6 +43,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -89,24 +95,28 @@ private fun Wake(state: CampingUiState, actions: MorningScreenActions, modifier:
     val sunrise = state.bedtime?.sunrise
     val batteryLow = state.lastEndReason == EndReason.BATTERY_LOW
     val morning = state.morning
+    // 나루 화면을 밤 색에서 흰색으로 천천히 밝힌다 (피그마 v2 갱신 "천천히 밝히는 중")
+    val brightness = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { brightness.animateTo(1f, tween(durationMillis = WAKE_BRIGHTEN_MS, easing = LinearEasing)) }
+    val dawn = lerp(colors.nightTop, colors.card, brightness.value)
+    val ink = lerp(Color.White, colors.text, brightness.value)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
-            NaruCard(modifier = Modifier.weight(1.9f).fillMaxHeight()) {
+            Box(modifier = Modifier.weight(1.9f).fillMaxHeight().clip(NaruShapes.card).background(dawn)) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Canvas(modifier = Modifier.size(260.dp)) {
                         drawCircle(colors.accent, style = Stroke(width = 14.dp.toPx()))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(text = "기상 알람", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
                         Text(
                             text = state.wakeDateTime?.format(hhmm) ?: now.format(hhmm),
                             style = MaterialTheme.typography.displayMedium,
-                            color = colors.text,
+                            color = ink,
                         )
                         Text(
                             text = if (batteryLow) "배터리가 ${state.batteryPercent ?: NightThresholds.BATTERY_LIMIT_PERCENT}%라 일찍 깨웠어요" else "일어날 시간이에요",
                             style = MaterialTheme.typography.titleMedium,
-                            color = if (batteryLow) colors.warningIcon else colors.text,
+                            color = if (batteryLow) colors.warningIcon else ink,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -114,13 +124,19 @@ private fun Wake(state: CampingUiState, actions: MorningScreenActions, modifier:
             }
             Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
                 InfoSide(
+                    icon = NaruIcons.Sunrise,
+                    label = "일출",
+                    value = MorningPresenter.sunriseCard(now.toLocalTime(), sunrise) ?: "알 수 없음",
+                    modifier = Modifier.weight(1f),
+                )
+                InfoSide(
                     icon = NaruIcons.Screen,
                     label = "나루 화면",
-                    value = when (morning?.lightApply) {
-                        ControlResult.Applied -> "아침 조명을 켰어요"
-                        null -> "아침 조명을 켜는 중"
-                        ControlResult.NotSupported -> "조명 제어를 쓸 수 없어요"
-                        else -> "조명 반영을 확인하지 못했어요"
+                    value = if (brightness.value < 1f) "천천히 밝히는 중" else "밝혀 뒀어요",
+                    // 실내 조명은 나루 화면과 함께 밝힌다. 반영이 안 됐을 때만 알린다
+                    note = when (morning?.lightApply) {
+                        is ControlResult.Failed, ControlResult.Unverified -> "실내 조명 반영을 확인하지 못했어요"
+                        else -> null
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -132,12 +148,6 @@ private fun Wake(state: CampingUiState, actions: MorningScreenActions, modifier:
                         morning?.alarmUnavailable == true -> "울리지 못했어요"
                         else -> "꺼져 있어요"
                     },
-                    modifier = Modifier.weight(1f),
-                )
-                InfoSide(
-                    icon = NaruIcons.Sunrise,
-                    label = "일출",
-                    value = MorningPresenter.sunriseCard(now.toLocalTime(), sunrise) ?: "알 수 없음",
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -319,7 +329,7 @@ private fun CardTitle(icon: ImageVector, title: String) {
 }
 
 @Composable
-private fun InfoSide(icon: ImageVector, label: String, value: String, modifier: Modifier) {
+private fun InfoSide(icon: ImageVector, label: String, value: String, modifier: Modifier, note: String? = null) {
     val colors = NaruTheme.colors
     NaruCard(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -327,7 +337,11 @@ private fun InfoSide(icon: ImageVector, label: String, value: String, modifier: 
             Column {
                 Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
                 Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text)
+                note?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.warningIcon) }
             }
         }
     }
 }
+
+/** 기상 화면을 밤 색에서 흰색으로 밝히는 시간 */
+private const val WAKE_BRIGHTEN_MS = 60_000

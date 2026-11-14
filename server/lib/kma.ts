@@ -34,7 +34,20 @@ export interface NightWeather {
   strongWind: boolean;
   /** 밤 구간 최대 풍속(m/s). 풍속 예보가 없으면 null (도착 안내 카드 문구, 이슈 #35) */
   maxWindMs: number | null;
+  /** 밤 3시간 간격 예보 (18·21·00·03·06시). 도착 안내 카드의 막대그래프용. 예보가 없는 시각은 빠진다 */
+  hourly: HourlyPoint[];
 }
+
+/** 한 시각의 예보. 값을 모르면 null */
+export interface HourlyPoint {
+  /** HH:mm (한국 시각) */
+  time: string;
+  tempC: number | null;
+  windMs: number | null;
+}
+
+/** 막대그래프에 보여 줄 밤 시각 */
+export const HOURLY_TIMES = ["1800", "2100", "0000", "0300", "0600"];
 
 export interface MorningWeather {
   tempC: number;
@@ -107,7 +120,24 @@ export function summarizeNight(items: ForecastItem[], night: NightWindow): Night
     precipitation: heavy ? "HEAVY_RAIN" : rainy ? "RAIN" : "NONE",
     strongWind: maxWindMs !== null && maxWindMs >= KMA_THRESHOLDS.strongWindMs,
     maxWindMs,
+    hourly: nightHourly(items, night),
   };
+}
+
+/** 밤 시각별 기온·풍속. 저녁 시각은 eveningDate, 자정 이후는 morningDate의 예보를 쓴다 */
+export function nightHourly(items: ForecastItem[], night: NightWindow): HourlyPoint[] {
+  const value = (category: string, date: string, time: string): number | null => {
+    const found = items.find((i) => i.category === category && i.fcstDate === date && i.fcstTime === time);
+    const n = found ? Number(found.fcstValue) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+  return HOURLY_TIMES.flatMap((time) => {
+    const date = time >= NIGHT_START ? night.eveningDate : night.morningDate;
+    const tempC = value("TMP", date, time);
+    const windMs = value("WSD", date, time);
+    if (tempC === null && windMs === null) return [];
+    return [{ time: `${time.slice(0, 2)}:${time.slice(2)}`, tempC, windMs }];
+  });
 }
 
 /** 기상 시각 무렵(정시 기준)의 기온과 하늘 상태. 예보가 없으면 null. */

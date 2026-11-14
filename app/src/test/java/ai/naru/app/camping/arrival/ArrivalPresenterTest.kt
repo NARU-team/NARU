@@ -93,4 +93,62 @@ class ArrivalPresenterTest {
     fun `이용 정보 출처는 사실대로 (시연 지역 내장)`() {
         assertEquals("시연 지역 내장 정보", present(forest, SiteConditions(calm, null)).cards[2].source)
     }
+
+    // --- 카드 그림 (피그마 v2 갱신) ---
+
+    private val hourly = listOf(
+        HourlyForecast(LocalTime.of(18, 0), 9f, 4f),
+        HourlyForecast(LocalTime.of(21, 0), 7f, 12f),
+        HourlyForecast(LocalTime.of(0, 0), 6f, 14f),
+        HourlyForecast(LocalTime.of(3, 0), 6f, 13f),
+        HourlyForecast(LocalTime.of(6, 0), 7f, 10f),
+    )
+
+    @Test
+    fun `기온 막대는 가장 낮은 시각을 강조하고 낮은 값도 보이게 그린다`() {
+        val bars = ArrivalPresenter.tempBars(hourly)!!
+        assertEquals(listOf("18시", "21시", "00시", "03시", "06시"), bars.bars.map { it.label })
+        assertEquals(listOf(false, false, true, true, false), bars.bars.map { it.highlight })
+        assertEquals("6°", bars.bars[2].valueText)
+        assertEquals(1f, bars.bars[0].fraction, 0.001f)
+        assertEquals(0.35f, bars.bars[2].fraction, 0.001f)
+        assertFalse(bars.highlightWarning)
+    }
+
+    @Test
+    fun `강한 바람이면 풍속 막대에서 가장 센 시각을 빨강으로`() {
+        val windy = NightWeather(3f, Precipitation.NONE, strongWind = true, maxWindMs = 14f, hourly = hourly)
+        val card = present(forest, SiteConditions(windy, null)).cards[0]
+        assertEquals("강한 바람 14m/s", card.value)
+        assertEquals("최저 3°C", card.description)
+        val bars = card.detail as ArrivalCardDetail.Bars
+        assertTrue(bars.highlightWarning)
+        assertEquals("14m/s", bars.bars.single { it.highlight }.valueText)
+    }
+
+    @Test
+    fun `예보가 두 개 미만이면 막대를 그리지 않는다`() {
+        assertEquals(null, ArrivalPresenter.tempBars(hourly.take(1)))
+        assertEquals(null, present(forest, SiteConditions(calm, null)).cards[0].detail)
+    }
+
+    @Test
+    fun `물때 시간표는 지금부터 흘러가는 순서로 만조에 자는 동안을 붙인다`() {
+        val conditions = SiteConditions(calm, listOf(LocalTime.of(2, 14)), lowTides = listOf(LocalTime.of(8, 31)))
+        val p = ArrivalPresenter.present(beach, conditions, ArrivalRules.assess(beach, conditions), retried = false, now = LocalTime.of(16, 20))
+        val timeline = p.cards[1].detail as ArrivalCardDetail.Timeline
+        assertEquals(listOf("지금", "만조", "간조"), timeline.events.map { it.label })
+        assertEquals(LocalTime.of(2, 14), timeline.events[1].time)
+        assertTrue(timeline.events[1].highlight)
+    }
+
+    @Test
+    fun `이용 정보는 시설을 목록으로, 허용 여부는 현장 확인 안내로`() {
+        val allowed = present(beach, SiteConditions(calm, listOf())).cards[2].detail as ArrivalCardDetail.Checklist
+        assertEquals(listOf("화장실", "샤워장"), allowed.items)
+        assertEquals("오늘 밤 이용 여부는 현장 확인", allowed.pill)
+        val unknownSite = forest.copy(permission = CampingPermission.UNKNOWN)
+        val unknown = present(unknownSite, SiteConditions(calm, null)).cards[2].detail as ArrivalCardDetail.Checklist
+        assertEquals("차박 허용 여부는 안내판 확인", unknown.pill)
+    }
 }

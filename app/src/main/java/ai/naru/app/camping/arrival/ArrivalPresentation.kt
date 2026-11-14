@@ -35,7 +35,27 @@ data class ArrivalCard(
     val source: String,
     /** 주의 색 (연한 빨강) */
     val warning: Boolean,
+    /** 카드 아래쪽 그림 (피그마 v2 갱신: 시간별 막대, 물때 시간표, 시설 목록). 없으면 설명만 */
+    val detail: ArrivalCardDetail? = null,
 )
+
+/** 카드 아래쪽에 그리는 정보 */
+sealed interface ArrivalCardDetail {
+    /** 시간별 막대그래프. [highlightWarning]이면 강조 막대를 빨강으로 (강한 바람) */
+    data class Bars(val bars: List<Bar>, val highlightWarning: Boolean) : ArrivalCardDetail
+
+    /** 물때 시간표: 지금 → 만조 → 간조 (시간 순서) */
+    data class Timeline(val events: List<TideEvent>) : ArrivalCardDetail
+
+    /** 시설 목록(체크)과 확인 안내 한 줄 */
+    data class Checklist(val items: List<String>, val pill: String?) : ArrivalCardDetail
+}
+
+/** 막대 하나: 아래 이름("18시"), 위 값("9°"), 높이 비율(0~1), 강조 여부 */
+data class Bar(val label: String, val valueText: String, val fraction: Float, val highlight: Boolean)
+
+/** 시간표 한 줄: "02:14 만조 [자는 동안]" */
+data class TideEvent(val time: LocalTime, val label: String, val highlight: Boolean, val tag: String? = null)
 
 /** 버튼: 주요(진회색) / 보조(연회색). 다시 시도 버튼은 조회 실패일 때 한 번만 */
 data class ArrivalButtons(
@@ -70,8 +90,9 @@ object ArrivalPresenter {
 
     /**
      * @param retried 다시 시도를 이미 썼는지 (한 번만 허용)
+     * @param now 조회 시각. 물때 시간표의 "지금" 줄에 쓴다 (모르면 줄을 뺀다)
      */
-    fun present(site: Site, conditions: SiteConditions, assessment: ArrivalAssessment, retried: Boolean): ArrivalPresentation {
+    fun present(site: Site, conditions: SiteConditions, assessment: ArrivalAssessment, retried: Boolean, now: LocalTime? = null): ArrivalPresentation {
         val reasons = assessment.reasons
         val weatherFailed = conditions.weather == null
         val tideFailed = site.placeType == PlaceType.BEACH && conditions.highTides == null
@@ -118,7 +139,7 @@ object ArrivalPresenter {
 
         val cards = listOf(
             weatherCard(conditions.weather, reasons),
-            if (site.placeType == PlaceType.BEACH) tideCard(conditions, reasons) else sunriseCard(conditions.sunrise),
+            if (site.placeType == PlaceType.BEACH) tideCard(conditions, reasons, now) else sunriseCard(conditions.sunrise),
             usageCard(site),
         )
         return ArrivalPresentation(state, title, subtitle, badge, badgeText, cards, buttons, note)
@@ -149,25 +170,66 @@ object ArrivalPresenter {
             weather.strongWind -> ArrivalCard(
                 ArrivalCardKind.WEATHER, label,
                 weather.maxWindMs?.let { "강한 바람 ${it.formatTemp()}m/s" } ?: "강한 바람",
-                "밤새 강한 바람이 예보돼 있어요. 최저 ${temp}°C예요", SOURCE_WEATHER, warn,
+                "최저 ${temp}°C", SOURCE_WEATHER, warn,
+                detail = windBars(weather.hourly),
             )
             weather.precipitation == Precipitation.HEAVY_RAIN -> ArrivalCard(
                 ArrivalCardKind.WEATHER, label, "강한 비", "밤새 강한 비가 예보돼 있어요. 최저 ${temp}°C예요", SOURCE_WEATHER, warn,
+                detail = tempBars(weather.hourly),
             )
             else -> ArrivalCard(
                 ArrivalCardKind.WEATHER, label, "최저 ${temp}°C", listOfNotNull(wind, rainText).joinToString(", "), SOURCE_WEATHER, warn,
+                detail = tempBars(weather.hourly),
             )
         }
     }
 
-    private fun tideCard(conditions: SiteConditions, reasons: List<ArrivalReason>): ArrivalCard {
+    /** 시간별 기온 막대: 가장 낮은 시각을 강조한다 (예보가 2개 미만이면 그리지 않는다) */
+    internal fun tempBars(hourly: List<HourlyForecast>): ArrivalCardDetail.Bars? {
+        val points = hourly.mapNotNull { h -> h.tempC?.let { h.time to it } }
+        if (points.size < 2) return null
+        val lo = points.minOf { it.second }
+        val hi = points.maxOf { it.second }
+        return ArrivalCardDetail.Bars(
+            points.map { (time, t) -> Bar(hourLabel(time), "${t.formatTemp()}°", scale(t, lo, hi), highlight = t == lo) },
+            highlightWarning = false,
+        )
+    }
+
+    /** 시간별 풍속 막대: 가장 센 시각을 빨강으로 강조한다 */
+    internal fun windBars(hourly: List<HourlyForecast>): ArrivalCardDetail.Bars? {
+        val points = hourly.mapNotNull { h -> h.windMs?.let { h.time to it } }
+        if (points.size < 2) return null
+        val lo = points.minOf { it.second }
+        val hi = points.maxOf { it.second }
+        return ArrivalCardDetail.Bars(
+            points.map { (time, w) -> Bar(hourLabel(time), "${w.formatTemp()}m/s", scale(w, lo, hi), highlight = w == hi) },
+            highlightWarning = true,
+        )
+    }
+
+    /** 가장 낮은 값도 막대가 보이게 0.35~1 사이로 */
+    private fun scale(v: Float, lo: Float, hi: Float): Float = if (hi - lo < 0.01f) 0.6f else 0.35f + 0.65f * (v - lo) / (hi - lo)
+
+    private fun hourLabel(time: LocalTime) = "%02d시".format(time.hour)
+
+    private fun tideCard(conditions: SiteConditions, reasons: List<ArrivalReason>, now: LocalTime?): ArrivalCard {
         val highs = conditions.highTides
             ?: return ArrivalCard(ArrivalCardKind.TIDE, "내일 새벽 물때 (조회 실패)", "조회 실패", "연결을 확인한 뒤 다시 시도해 주세요", SOURCE_TIDE, warning = true)
         val nightHigh = reasons.filterIsInstance<ArrivalReason.NightHighTide>().firstOrNull()?.at
         val shown = nightHigh ?: highs.firstOrNull()
             ?: return ArrivalCard(ArrivalCardKind.TIDE, "내일 새벽 물때", "만조 없음", "밤사이 만조가 없어요", SOURCE_TIDE, warning = false)
-        val low = conditions.lowTides?.firstOrNull()?.let { "간조는 ${it.format(hhmm)}이에요" }
+        val lowTime = conditions.lowTides?.firstOrNull()
+        val low = lowTime?.let { "간조는 ${it.format(hhmm)}이에요" }
         val desc = listOfNotNull(if (nightHigh != null) "자는 동안 물이 가장 높아져요" else null, low).joinToString("\n")
+        val events = listOfNotNull(
+            now?.let { TideEvent(it, "지금", highlight = false) },
+            TideEvent(shown, "만조", highlight = true, tag = if (nightHigh != null) "자는 동안" else null),
+            lowTime?.let { TideEvent(it, "간조", highlight = false) },
+        )
+        // 지금부터 흘러가는 순서로 (자정을 넘기면 다음 날)
+        val origin = now ?: LocalTime.of(NIGHT_ORIGIN_HOUR, 0)
+        val ordered = events.sortedBy { Math.floorMod(it.time.toSecondOfDay() - origin.toSecondOfDay(), 24 * 3600) }
         return ArrivalCard(
             ArrivalCardKind.TIDE,
             if (nightHigh != null) "내일 새벽 물때 (주의)" else "내일 새벽 물때",
@@ -175,8 +237,12 @@ object ArrivalPresenter {
             desc,
             SOURCE_TIDE,
             warning = nightHigh != null,
+            detail = ArrivalCardDetail.Timeline(ordered),
         )
     }
+
+    /** "지금"을 모를 때 시간표를 정렬할 기준 (저녁) */
+    private const val NIGHT_ORIGIN_HOUR = 12
 
     private fun sunriseCard(sunrise: LocalTime?): ArrivalCard = ArrivalCard(
         ArrivalCardKind.SUNRISE,
@@ -199,11 +265,16 @@ object ArrivalPresenter {
             CampingPermission.ALLOWED -> ArrivalCard(
                 ArrivalCardKind.USAGE, "이용 정보", if (camp) "등록된 자동차야영장" else "등록된 차박 장소",
                 listOfNotNull(facilities, "오늘 밤 이용 가능 여부는 현장에서 확인해 주세요").joinToString("\n"), source, warning = false,
+                detail = ArrivalCardDetail.Checklist(site.facilities, "오늘 밤 이용 여부는 현장 확인"),
             )
             CampingPermission.UNKNOWN -> ArrivalCard(
                 ArrivalCardKind.USAGE, "이용 정보 (확인 필요)", if (camp) "차박 가능 여부를 확인해 주세요" else "차박 허용 여부를 찾지 못했어요",
                 listOfNotNull(if (camp) "등록된 야영장이지만 자동차야영장은 아니에요" else "현장 안내판을 확인해 주세요", facilities).joinToString("\n"),
                 source, warning = false,
+                detail = ArrivalCardDetail.Checklist(
+                    site.facilities,
+                    if (camp) "자동차야영장이 아니라 현장 확인 필요" else "차박 허용 여부는 안내판 확인",
+                ),
             )
             CampingPermission.PROHIBITED -> ArrivalCard(
                 ArrivalCardKind.USAGE, "이용 정보 (주의)", "차박 금지 장소예요",

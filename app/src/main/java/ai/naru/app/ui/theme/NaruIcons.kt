@@ -37,6 +37,8 @@ object NaruIcons {
     /** 모드·테마 */
     val Tent: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_camping)
     val Clock: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_schedule)
+    val ChevronLeft: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_chevron_left)
+    val ChevronRight: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_chevron_right)
     val Alarm: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_alarm)
     val Sound: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_graphic_eq)
     val Light: ImageVector @Composable get() = ImageVector.vectorResource(R.drawable.ic_lightbulb)

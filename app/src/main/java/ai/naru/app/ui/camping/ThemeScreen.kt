@@ -30,6 +30,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.height
+import ai.naru.app.camping.night.ThemeTimer
+import kotlinx.coroutines.delay
+import java.time.LocalDateTime
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,12 +49,14 @@ data class ThemeScreenActions(
     val onClose: () -> Unit = {},
     val onSelectTheme: (PlaceType) -> Unit = {},
     val onStartNight: () -> Unit = {},
+    /** 테마 종료 시간 화살표 (-1 / +1) */
+    val onMoveThemeMinutes: (Int) -> Unit = {},
 )
 
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
- * 피그마 v2 "밤 분위기 3/3" (이슈 #37). 테마 종료 타이머(30/60/90분)는 새 기능 이슈에서.
+ * 피그마 v2 "밤 분위기 3/3" (이슈 #37), 갱신본의 "테마 종료" 줄(30/60/90분)과 "제어 미지원 차량" 문구.
  * 소리·조명 설명은 실제 동작(NightThemes 색, 테마 소리)과 맞춘다.
  */
 @Composable
@@ -64,18 +73,20 @@ fun ThemeScreen(bedtime: BedtimeState?, recommended: PlaceType?, actions: ThemeS
                         theme = theme,
                         selected = bedtime.settings.theme == theme,
                         recommended = theme == recommended,
+                        lightSupported = bedtime.lightSupported,
                         onClick = { actions.onSelectTheme(theme) },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                     )
                 }
             }
+            ThemeTimerRow(bedtime.settings.themeMinutes, actions.onMoveThemeMinutes)
             SummaryBar(bedtime, actions.onStartNight)
         }
     }
 }
 
 @Composable
-private fun ThemeCard(theme: PlaceType, selected: Boolean, recommended: Boolean, onClick: () -> Unit, modifier: Modifier) {
+private fun ThemeCard(theme: PlaceType, selected: Boolean, recommended: Boolean, lightSupported: Boolean, onClick: () -> Unit, modifier: Modifier) {
     val colors = NaruTheme.colors
     NaruCard(modifier = modifier, tone = if (selected) CardTone.SELECTED else CardTone.DEFAULT, onClick = onClick, contentPadding = PaddingValues(0.dp)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -87,7 +98,7 @@ private fun ThemeCard(theme: PlaceType, selected: Boolean, recommended: Boolean,
                     if (recommended) NaruBadge("${theme.title()} 위치라 추천", BadgeTone.ACCENT)
                 }
                 Line(NaruIcons.Sound, theme.sound())
-                Line(NaruIcons.Light, theme.light())
+                Line(NaruIcons.Light, if (lightSupported) theme.light() else theme.screen())
             }
         }
     }
@@ -127,13 +138,52 @@ private fun SummaryBar(bedtime: BedtimeState, onStartNight: () -> Unit) {
                 SummaryItem(NaruIcons.Thermometer, "설정 온도 ${s.targetTempC.formatTemp()}°C")
                 SummaryItem(NaruIcons.Alarm, "기상 알람 ${s.wakeAt.format(hhmm)}")
             }
-            Text(text = "소리와 조명은 차박을 시작하면 켜져요", style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
+            val note = when {
+                !bedtime.lightSupported && bedtime.vehicleTempRange == null -> "이 차는 공조와 조명 제어를 지원하지 않아요. 온도는 차량에서 직접 맞춰 주세요."
+                !bedtime.lightSupported -> "이 차는 조명 제어를 지원하지 않아 나루 화면 색으로 보여 드려요."
+                else -> "소리와 조명은 차박을 시작하면 켜지고 테마 종료 시각에 꺼져요"
+            }
+            Text(text = note, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
         }
         NaruPrimaryButton(
             text = if (bedtime.preparing) "차량 설정을 준비하고 있어요" else "이 설정으로 차박 시작",
             onClick = onStartNight,
             enabled = !bedtime.preparing,
         )
+    }
+}
+
+/** "테마 종료" 줄: [<] 진행 바 [>]  60분  00:20에 꺼져요 */
+@Composable
+private fun ThemeTimerRow(minutes: Int, onMove: (Int) -> Unit) {
+    val colors = NaruTheme.colors
+    val now by produceState(LocalDateTime.now()) {
+        while (true) {
+            delay(30_000)
+            value = LocalDateTime.now()
+        }
+    }
+    val options = ThemeTimer.OPTIONS
+    val fraction = (options.indexOf(minutes) + 1).toFloat() / options.size
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(NaruIcons.Clock, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(18.dp))
+        Text(text = "테마 종료", style = MaterialTheme.typography.titleMedium, color = colors.text)
+        Row(
+            modifier = Modifier.weight(1f).clip(NaruShapes.button).background(colors.secondaryButton).padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { onMove(-1) }, enabled = minutes != options.first()) {
+                Icon(NaruIcons.ChevronLeft, contentDescription = "줄이기", tint = colors.text)
+            }
+            Box(modifier = Modifier.weight(1f).height(28.dp).clip(NaruShapes.button).background(colors.track)) {
+                Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(NaruShapes.button).background(colors.card))
+            }
+            IconButton(onClick = { onMove(1) }, enabled = minutes != options.last()) {
+                Icon(NaruIcons.ChevronRight, contentDescription = "늘리기", tint = colors.text)
+            }
+        }
+        Text(text = "${minutes}분", style = MaterialTheme.typography.titleLarge, color = colors.text)
+        Text(text = "${ThemeTimer.endsAt(now, minutes).format(hhmm)}에 꺼져요", style = MaterialTheme.typography.titleMedium, color = colors.textSecondary)
     }
 }
 
@@ -155,6 +205,13 @@ private fun PlaceType.sound() = when (this) {
     PlaceType.BEACH -> "파도 소리"
     PlaceType.FOREST -> "풀벌레와 바람 소리"
     PlaceType.LAKE -> "잔물결 소리"
+}
+
+/** 조명 미지원 차량: 나루 화면 색으로만 보여 준다 */
+private fun PlaceType.screen() = when (this) {
+    PlaceType.BEACH -> "푸른빛 화면"
+    PlaceType.FOREST -> "초록빛 화면"
+    PlaceType.LAKE -> "청록빛 화면"
 }
 
 /** NightThemes의 실제 조명 색과 맞춘다 (해변 파랑, 숲 초록, 호수 청록) */

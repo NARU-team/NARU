@@ -118,6 +118,16 @@ object ServerJson {
                     precipitation = Precipitation.valueOf(it.getString("precipitation")),
                     strongWind = it.getBoolean("strongWind"),
                     maxWindMs = if (it.isNull("maxWindMs") || !it.has("maxWindMs")) null else it.getDouble("maxWindMs").toFloat(),
+                    hourly = it.arrayOrNull("hourly")?.let { a ->
+                        (0 until a.length()).map { i ->
+                            val h = a.getJSONObject(i)
+                            HourlyForecast(
+                                time = LocalTime.parse(h.getString("time")),
+                                tempC = if (h.isNull("tempC")) null else h.getDouble("tempC").toFloat(),
+                                windMs = if (h.isNull("windMs")) null else h.getDouble("windMs").toFloat(),
+                            )
+                        }
+                    } ?: emptyList(),
                 )
             },
             highTides = o.arrayOrNull("highTides")?.let { a -> (0 until a.length()).map { LocalTime.parse(a.getString(it)) } },

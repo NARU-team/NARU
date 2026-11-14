@@ -16,9 +16,29 @@ interface SiteRepository {
      * 위치 조회를 지원하지 않으면 null → 시연 지역 고르기로 대체.
      */
     suspend fun conditionsAt(location: LatLng): LocatedConditions? = null
+
+    /** 근처 야영장. 조회를 지원하지 않거나 실패하면 null, 근처에 없으면 빈 목록 */
+    suspend fun nearby(location: LatLng): List<NearbyPlace>? = null
 }
 
 data class LocatedConditions(val site: Site?, val conditions: SiteConditions)
+
+/**
+ * 차량 근처의 실제 야영장 (한국관광공사 고캠핑, 이슈 #46).
+ * @property placeType 입지로 추정한 유형. 모르면 null
+ * @property permission 자동차야영장이면 ALLOWED, 아니면 확인 필요(UNKNOWN)
+ */
+data class NearbyPlace(
+    val id: String,
+    val name: String,
+    val kind: String?,
+    val placeType: PlaceType?,
+    val permission: CampingPermission,
+    val facilities: List<String>,
+    val distanceKm: Double,
+    val lat: Double,
+    val lon: Double,
+)
 
 /**
  * 시연 지역 내장 데이터. **실제 장소·날씨가 아닌 샘플 값**이다.

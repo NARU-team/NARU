@@ -63,8 +63,10 @@ object ArrivalPresenter {
     const val SOURCE_TIDE = "국립해양조사원 조석예보"
     const val SOURCE_SUNRISE = "좌표로 계산한 일출 시각"
 
-    /** 이용 정보는 시연 지역에 내장한 값이다 (관광공사 API 연동 전, 출처를 사실대로 적는다) */
+    /** 이용 정보 출처: 시연 지역은 내장 값, 근처 야영장은 관광공사 고캠핑 (출처를 사실대로 적는다) */
     const val SOURCE_USAGE = "시연 지역 내장 정보"
+    const val SOURCE_GOCAMPING = "한국관광공사 고캠핑 정보"
+    const val SOURCE_HERE = "등록된 장소 정보 없음"
 
     /**
      * @param retried 다시 시도를 이미 썼는지 (한 번만 허용)
@@ -187,18 +189,25 @@ object ArrivalPresenter {
 
     private fun usageCard(site: Site): ArrivalCard {
         val facilities = if (site.facilities.isEmpty()) null else site.facilities.joinToString(", ").let { "$it${subjectParticle(it)} 있어요" }
+        val camp = site.id.startsWith("camp-")
+        val source = when {
+            camp -> SOURCE_GOCAMPING
+            site.id == "here" -> SOURCE_HERE
+            else -> SOURCE_USAGE
+        }
         return when (site.permission) {
             CampingPermission.ALLOWED -> ArrivalCard(
-                ArrivalCardKind.USAGE, "이용 정보", "등록된 차박 장소",
-                listOfNotNull(facilities, "오늘 밤 이용 가능 여부는 현장에서 확인해 주세요").joinToString("\n"), SOURCE_USAGE, warning = false,
+                ArrivalCardKind.USAGE, "이용 정보", if (camp) "등록된 자동차야영장" else "등록된 차박 장소",
+                listOfNotNull(facilities, "오늘 밤 이용 가능 여부는 현장에서 확인해 주세요").joinToString("\n"), source, warning = false,
             )
             CampingPermission.UNKNOWN -> ArrivalCard(
-                ArrivalCardKind.USAGE, "이용 정보 (확인 필요)", "차박 허용 여부를 찾지 못했어요",
-                listOfNotNull("현장 안내판을 확인해 주세요", facilities).joinToString("\n"), SOURCE_USAGE, warning = false,
+                ArrivalCardKind.USAGE, "이용 정보 (확인 필요)", if (camp) "차박 가능 여부를 확인해 주세요" else "차박 허용 여부를 찾지 못했어요",
+                listOfNotNull(if (camp) "등록된 야영장이지만 자동차야영장은 아니에요" else "현장 안내판을 확인해 주세요", facilities).joinToString("\n"),
+                source, warning = false,
             )
             CampingPermission.PROHIBITED -> ArrivalCard(
                 ArrivalCardKind.USAGE, "이용 정보 (주의)", "차박 금지 장소예요",
-                "다른 장소로 이동해 주세요", SOURCE_USAGE, warning = true,
+                "다른 장소로 이동해 주세요", source, warning = true,
             )
         }
     }

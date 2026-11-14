@@ -1,5 +1,11 @@
 package ai.naru.app.ui.camping
 
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import ai.naru.app.camping.arrival.NearbyPlace
 import ai.naru.app.camping.ArrivalState
 import ai.naru.app.camping.NarrationState
 import ai.naru.app.camping.arrival.ArrivalBadge
@@ -59,6 +65,8 @@ data class ArrivalActions(
     /** [현재 위치로 찾기]: 권한이 없으면 요청한 뒤 위치로 찾는다 */
     val onLocate: () -> Unit = {},
     val onChoosePlaceType: (PlaceType) -> Unit = {},
+    /** 근처 야영장 고르기 (이슈 #46) */
+    val onChoosePlace: (NearbyPlace) -> Unit = {},
 )
 
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -79,7 +87,12 @@ fun ArrivalScreen(
     locating: Boolean = false,
     /** 시연 지역이 아닌 현재 위치: 장소 유형을 물어본다 */
     askPlaceType: Boolean = false,
+    /** 현재 위치 근처의 실제 야영장. 있으면 장소 유형 대신 먼저 보여준다 */
+    nearbyPlaces: List<NearbyPlace> = emptyList(),
+    loadingPlace: NearbyPlace? = null,
 ) {
+    // [지금 이 자리]를 누르면 근처 야영장 대신 장소 유형을 묻는다 (화면 안 상태)
+    var stayHere by remember(nearbyPlaces) { mutableStateOf(false) }
     FigmaFrame(modifier = modifier.fillMaxSize().background(NaruTheme.colors.background)) {
         Column(
             modifier = Modifier.fillMaxSize().padding(NaruSpacing.panel),
@@ -88,6 +101,8 @@ fun ArrivalScreen(
             NaruStepHeader(title = "도착 안내 1/3", onBack = actions.onBack)
             if (locating) {
                 Message("현재 위치를 확인하고 있어요…", "차량 위치로 오늘 밤 날씨와 물때를 찾아요.")
+            } else if (askPlaceType && nearbyPlaces.isNotEmpty() && !stayHere) {
+                NearbyPicker(nearbyPlaces, loadingPlace, actions, onStayHere = { stayHere = true }, Modifier.weight(1f))
             } else if (askPlaceType) {
                 PlaceTypeQuestion(actions, Modifier.weight(1f))
             } else if (arrival == null) {
@@ -249,6 +264,67 @@ private fun PlaceTypeQuestion(actions: ArrivalActions, modifier: Modifier) {
         }
     }
 }
+
+/** 근처 실제 야영장 (한국관광공사 고캠핑, 거리순 가까운 3곳) */
+@Composable
+private fun NearbyPicker(
+    places: List<NearbyPlace>,
+    loadingPlace: NearbyPlace?,
+    actions: ArrivalActions,
+    onStayHere: () -> Unit,
+    modifier: Modifier,
+) {
+    val colors = NaruTheme.colors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(text = "근처 차박 장소", style = MaterialTheme.typography.headlineMedium, color = colors.text)
+            Text(
+                text = "차량 위치에서 가까운 등록 야영장이에요. 고르면 그곳의 오늘 밤 날씨와 물때를 조회해요.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textTertiary,
+            )
+        }
+        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+            for (place in places.take(NEARBY_SHOWN)) {
+                val loading = loadingPlace == place
+                NaruCard(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    onClick = { if (loadingPlace == null) actions.onChoosePlace(place) },
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(NaruSpacing.small)) {
+                        NaruIconCircle((place.placeType ?: PlaceType.FOREST).icon())
+                        Text(text = place.name, style = MaterialTheme.typography.titleLarge, color = colors.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            text = listOfNotNull("%.1fkm".format(place.distanceKm), place.kind?.split(",")?.firstOrNull()?.trim()).joinToString(" · "),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textSecondary,
+                        )
+                        Text(
+                            text = if (loading) "불러오는 중…" else if (place.permission == CampingPermission.ALLOWED) "자동차야영장" else "차박 가능 여부 확인 필요",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (place.permission == CampingPermission.ALLOWED || loading) colors.accent else colors.textTertiary,
+                        )
+                        if (place.facilities.isNotEmpty()) {
+                            Text(
+                                text = "시설: ${place.facilities.take(3).joinToString(", ")}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textTertiary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        NaruBottomBar(note = "출처: 한국관광공사 고캠핑 정보. 오늘 밤 이용 가능 여부는 현장에서 확인해 주세요.") {
+            NaruSecondaryButton(text = "지금 이 자리", onClick = onStayHere)
+            NaruSecondaryButton(text = "시연 지역에서 고르기", onClick = actions.onChangeSite)
+        }
+    }
+}
+
+private const val NEARBY_SHOWN = 3
 
 @Composable
 private fun Message(title: String, body: String) {

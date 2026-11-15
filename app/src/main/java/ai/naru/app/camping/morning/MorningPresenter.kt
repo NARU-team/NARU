@@ -15,16 +15,23 @@ object MorningPresenter {
 
     private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-    /** "12분 뒤 07:02에 해가 떠요." / "07:02에 해가 떴어요." */
-    fun sunriseSentence(now: LocalTime, sunrise: LocalTime?): String? {
+    /**
+     * "12분 뒤 07:02에 해가 떠요." / "07:02에 해가 떴어요."
+     * [wake]: 기상 화면. 알람은 일출 전에 울리므로 지난 시각으로 계산돼도(에뮬레이터 시계 등) "뜰 거예요"로 쓴다.
+     */
+    fun sunriseSentence(now: LocalTime, sunrise: LocalTime?, wake: Boolean = false): String? {
         sunrise ?: return null
-        return if (sunrise.isAfter(now)) "${duration(Duration.between(now, sunrise))} 뒤 ${sunrise.format(hhmm)}에 해가 떠요." else "${sunrise.format(hhmm)}에 해가 떴어요."
+        return when {
+            sunrise.isAfter(now) -> "${duration(Duration.between(now, sunrise))} 뒤 ${sunrise.format(hhmm)}에 해가 떠요."
+            wake -> "${sunrise.format(hhmm)}에 해가 뜰 거예요."
+            else -> "${sunrise.format(hhmm)}에 해가 떴어요."
+        }
     }
 
-    /** 기상 화면 일출 카드 값: "12분 뒤 07:02" / "07:02에 떴어요" */
+    /** 기상 화면 일출 카드 값: "12분 뒤 07:02" / "07:02에 뜰 거예요" (알람은 일출 전이라 지난 일로 쓰지 않는다) */
     fun sunriseCard(now: LocalTime, sunrise: LocalTime?): String? {
         sunrise ?: return null
-        return if (sunrise.isAfter(now)) "${duration(Duration.between(now, sunrise))} 뒤 ${sunrise.format(hhmm)}" else "${sunrise.format(hhmm)}에 떴어요"
+        return if (sunrise.isAfter(now)) "${duration(Duration.between(now, sunrise))} 뒤 ${sunrise.format(hhmm)}" else "${sunrise.format(hhmm)}에 뜰 거예요"
     }
 
     /** "7시간 40분 머물렀어요" */

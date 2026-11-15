@@ -102,11 +102,11 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                 Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
                     SideCard(
                         icon = NaruIcons.Thermometer,
-                        // ◀ ▶ 버튼 자리 때문에 문장이 잘리지 않게 짧은 줄로 나눈다: 유지 온도 / 24°C / 지금 실내 19.1°C
+                        // 짧은 줄로 나눈다: 유지 온도 / 24°C ◀ ▶ / 지금 실내 19.1°C
                         label = "유지 온도",
                         value = settings?.let { "${it.targetTempC.formatTemp()}°C" } ?: "-",
                         sub = state.cabinTempC?.let { "지금 실내 ${it.formatTemp()}°C" },
-                        note = state.temperatureApply?.problem("설정 온도"),
+                        note = state.temperatureApply?.problem("온도"),
                         modifier = Modifier.weight(1f),
                         trailing = if (settings != null && state.temperatureApply != ControlResult.NotSupported) {
                             {
@@ -284,12 +284,25 @@ private fun SideCard(
         Row(modifier = Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NaruIconCircle(icon, tone = tone)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // 실패 안내는 이름 줄 옆에 붙여 줄 수를 늘리지 않는다 (카드 높이가 고정이라 줄이 늘면 잘림)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary, maxLines = 1)
+                    note?.let { Text(text = "· $it", style = MaterialTheme.typography.labelMedium, color = colors.warningIcon, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+                // ◀ ▶ 버튼은 값 줄에만 붙인다. 아래 보조 줄(지금 실내 19.1°C)이 카드 폭을 다 쓰게 해서 잘리지 않게 한다
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    trailing?.invoke()
+                }
                 sub?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                note?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.warningIcon) }
             }
-            trailing?.invoke()
         }
     }
 }
@@ -299,11 +312,11 @@ private fun SideCard(
 private fun TempStepButton(icon: ImageVector, description: String, enabled: Boolean, onClick: () -> Unit) {
     val colors = NaruTheme.colors
     Box(
-        modifier = Modifier.size(40.dp).clip(NaruShapes.pill).background(colors.secondaryButton)
+        modifier = Modifier.size(34.dp).clip(NaruShapes.pill).background(colors.secondaryButton)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = description, tint = if (enabled) colors.text else colors.textTertiary, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = description, tint = if (enabled) colors.text else colors.textTertiary, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -325,8 +338,8 @@ private fun ThemeSideCard(state: CampingUiState, actions: NightScreenActions, mo
     }
     val note = when {
         !state.themeOn -> null
-        state.soundOn && !state.soundPlaying -> "다른 소리가 재생 중이라 테마 소리를 못 틀었어요"
-        state.lightOn -> state.lightApply?.problem("테마 조명")
+        state.soundOn && !state.soundPlaying -> "다른 소리 재생 중"
+        state.lightOn -> state.lightApply?.problem("조명")
         else -> null
     }
     NaruCard(modifier = modifier.fillMaxWidth()) {
@@ -334,9 +347,13 @@ private fun ThemeSideCard(state: CampingUiState, actions: NightScreenActions, mo
             NaruIconCircle(NaruIcons.Tide)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                    Text(text = "${settings?.theme?.themeLabel() ?: ""} 테마", style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
-                    Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text)
-                    note?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.warningIcon) }
+                    // 실패 안내를 따로 한 줄 더 쓰면 아래 소리·조명 버튼이 카드 밖으로 밀려 잘린다
+                    // → 테마 이름 줄 옆에 붙여 줄 수를 늘리지 않는다 (길면 말줄임)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(text = "${settings?.theme?.themeLabel() ?: ""} 테마", style = MaterialTheme.typography.labelMedium, color = colors.textTertiary, maxLines = 1)
+                        note?.let { Text(text = "· $it", style = MaterialTheme.typography.labelMedium, color = colors.warningIcon, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    }
+                    Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (state.themeOn) {
@@ -396,9 +413,10 @@ private fun AssistantStrip(assistant: AssistantState, actions: AssistantActions)
 }
 
 /** 차량 제어 결과 중 사용자에게 알려야 할 문제 (정상 반영이면 null) */
+/** 옆 카드 안내 한 줄: 카드 폭이 좁아 짧게 쓴다 (자세한 안내는 제어 실패 팝업이 맡는다) */
 private fun ControlResult.problem(subject: String): String? = when (this) {
     ControlResult.Applied -> null
-    ControlResult.Unverified -> "$subject 반영을 확인하지 못했어요"
-    ControlResult.NotSupported -> "$subject 제어를 지원하지 않는 차량이에요"
-    is ControlResult.Failed -> "$subject 변경에 실패했어요"
+    ControlResult.Unverified -> "$subject 반영 확인 필요"
+    ControlResult.NotSupported -> "$subject 미지원 차량"
+    is ControlResult.Failed -> "$subject 변경 실패"
 }

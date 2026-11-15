@@ -28,6 +28,8 @@ import ai.naru.app.ui.theme.NaruSpacing
 import ai.naru.app.ui.theme.NaruTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -252,7 +254,13 @@ private fun TemperatureCard(bedtime: BedtimeState, cabinTempC: Float?, onSetTemp
                         Icon(NaruIcons.Battery, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(16.dp))
                         Text(text = "온도별 아침 예상 배터리", style = MaterialTheme.typography.titleMedium, color = colors.text)
                     }
-                    for (row in bedtime.forecastRows) ForecastRow(row, selected = row.celsius == bedtime.settings.targetTempC)
+                    // 온도 줄이 많으면 이 목록만 스크롤하고, 아래 경고 문구는 잘리지 않게 항상 남긴다
+                    Column(
+                        modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        for (row in bedtime.forecastRows) ForecastRow(row, selected = row.celsius == bedtime.settings.targetTempC)
+                    }
                     Text(
                         text = "${NightThresholds.BATTERY_LIMIT_PERCENT}%에 닿으면 경고해요",
                         style = MaterialTheme.typography.labelMedium,

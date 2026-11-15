@@ -7,6 +7,8 @@
 
 **Pleos Connect 기반의 차량 특화 휴식 경험**을 제안합니다.
 
+### 🎬 [시연 영상 보기 (NARU-demo.mp4, 12MB)](https://github.com/NARU-team/NARU/releases/download/v0.1.0/NARU-demo.mp4)
+
 ---
 
 ## 📦 앱 다운로드 · 실행 방법
@@ -16,6 +18,7 @@
 | 버전 | 파일 | 비고 |
 |---|---|---|
 | v0.1.0 | [NARU-v0.1.0.apk](https://github.com/NARU-team/NARU/releases/download/v0.1.0/NARU-v0.1.0.apk) | 시연용 debug 빌드 (차박 모드) |
+| 시연 영상 | [NARU-demo.mp4](https://github.com/NARU-team/NARU/releases/download/v0.1.0/NARU-demo.mp4) | 자막 포함 |
 
 전체 릴리스 목록은 [Releases](https://github.com/NARU-team/NARU/releases)에서 볼 수 있습니다.
 

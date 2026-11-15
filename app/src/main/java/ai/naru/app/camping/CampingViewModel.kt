@@ -371,19 +371,22 @@ class CampingViewModel(
             val here = location.lastKnown()
             val located = here?.let { siteRepository.conditionsAt(it) }
             if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
-            _state.update { it.copy(locating = false) }
             if (located == null) {
+                _state.update { it.copy(locating = false) }
                 Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
                 return@launch
             }
             // 시연 지역 근처여도 먼저 근처 실제 야영장 3곳을 보여 준다 (사용자 피드백 2026-11-15).
-            // 근처 야영장이 없을 때만 시연 지역은 바로 판정, 아니면 장소 유형을 묻는다
+            // 근처 야영장 조회가 끝날 때까지 로딩 화면을 유지한다 (중간에 시연 지역 목록이 잠깐 보이지 않게)
             val nearby = siteRepository.nearby(here).orEmpty()
             if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
             when {
-                nearby.isNotEmpty() -> _state.update { it.copy(hereConditions = located.conditions, nearbyPlaces = nearby) }
-                located.site != null -> showArrival(_state.value.sites.firstOrNull { it.id == located.site.id } ?: located.site, located.conditions, retried = false)
-                else -> _state.update { it.copy(hereConditions = located.conditions, nearbyPlaces = emptyList()) }
+                nearby.isNotEmpty() -> _state.update { it.copy(locating = false, hereConditions = located.conditions, nearbyPlaces = nearby) }
+                located.site != null -> {
+                    _state.update { it.copy(locating = false) }
+                    showArrival(_state.value.sites.firstOrNull { it.id == located.site.id } ?: located.site, located.conditions, retried = false)
+                }
+                else -> _state.update { it.copy(locating = false, hereConditions = located.conditions, nearbyPlaces = emptyList()) }
             }
         }
     }

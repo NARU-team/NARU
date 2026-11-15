@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -101,8 +102,10 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                 Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
                     SideCard(
                         icon = NaruIcons.Thermometer,
-                        label = state.cabinTempC?.let { "실내 지금 ${it.formatTemp()}°C" } ?: "실내",
-                        value = settings?.let { "${it.targetTempC.formatTemp()}°C 유지 중" } ?: "-",
+                        // ◀ ▶ 버튼 자리 때문에 문장이 잘리지 않게 짧은 줄로 나눈다: 유지 온도 / 24°C / 지금 실내 19.1°C
+                        label = "유지 온도",
+                        value = settings?.let { "${it.targetTempC.formatTemp()}°C" } ?: "-",
+                        sub = state.cabinTempC?.let { "지금 실내 ${it.formatTemp()}°C" },
                         note = state.temperatureApply?.problem("설정 온도"),
                         modifier = Modifier.weight(1f),
                         trailing = if (settings != null && state.temperatureApply != ControlResult.NotSupported) {
@@ -272,6 +275,8 @@ private fun SideCard(
     modifier: Modifier,
     warning: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
+    /** 값 아래 보조 한 줄 (회색) */
+    sub: String? = null,
 ) {
     val colors = NaruTheme.colors
     val tone = if (warning) CardTone.WARNING else CardTone.DEFAULT
@@ -279,8 +284,9 @@ private fun SideCard(
         Row(modifier = Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NaruIconCircle(icon, tone = tone)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
-                Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text)
+                Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                sub?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 note?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.warningIcon) }
             }
             trailing?.invoke()

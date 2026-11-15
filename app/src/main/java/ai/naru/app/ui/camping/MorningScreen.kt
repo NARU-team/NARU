@@ -154,7 +154,7 @@ private fun Wake(state: CampingUiState, actions: MorningScreenActions, modifier:
             }
         }
         NaruBottomBar(
-            note = if (batteryLow) "배터리를 아끼려면 공조를 줄이고 충전 계획을 세워 주세요." else MorningPresenter.sunriseSentence(now.toLocalTime(), sunrise),
+            note = if (batteryLow) "배터리를 아끼려면 공조를 줄이고 충전 계획을 세워 주세요." else MorningPresenter.sunriseSentence(now.toLocalTime(), sunrise, wake = true),
             noteIcon = NaruIcons.Sunrise,
         ) {
             NaruPrimaryButton(text = "알람 끄고 아침 브리핑 보기", onClick = actions.onWakeUp)

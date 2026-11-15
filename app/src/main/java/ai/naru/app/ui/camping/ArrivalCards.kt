@@ -13,6 +13,8 @@ import ai.naru.app.ui.theme.NaruShapes
 import ai.naru.app.ui.theme.NaruSpacing
 import ai.naru.app.ui.theme.NaruTheme
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -159,7 +161,8 @@ private fun Timeline(events: List<TideEvent>, modifier: Modifier) {
 @Composable
 private fun Checklist(detail: ArrivalCardDetail.Checklist, modifier: Modifier) {
     val colors = NaruTheme.colors
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // 시설이 많으면 카드 높이를 넘으므로 목록만 스크롤한다 (출처 줄은 카드 아래에 고정)
+    Column(modifier = modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (item in detail.items) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(NaruIcons.Check, contentDescription = null, tint = colors.text, modifier = Modifier.size(16.dp))

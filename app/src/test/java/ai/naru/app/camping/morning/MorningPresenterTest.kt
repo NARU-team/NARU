@@ -15,6 +15,8 @@ class MorningPresenterTest {
         assertEquals("12분 뒤 07:02에 해가 떠요.", MorningPresenter.sunriseSentence(LocalTime.of(6, 50), LocalTime.of(7, 2)))
         assertEquals("07:02에 해가 떴어요.", MorningPresenter.sunriseSentence(LocalTime.of(7, 30), LocalTime.of(7, 2)))
         assertEquals("12분 뒤 07:02", MorningPresenter.sunriseCard(LocalTime.of(6, 50), LocalTime.of(7, 2)))
+        assertEquals("07:02에 뜰 거예요", MorningPresenter.sunriseCard(LocalTime.of(7, 30), LocalTime.of(7, 2)))
+        assertEquals("07:02에 해가 뜰 거예요.", MorningPresenter.sunriseSentence(LocalTime.of(7, 30), LocalTime.of(7, 2), wake = true))
         assertNull(MorningPresenter.sunriseSentence(LocalTime.of(6, 50), null))
     }
 

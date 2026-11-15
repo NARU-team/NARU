@@ -6,12 +6,12 @@
 
 | 파일 | 출처 | 라이선스 |
 | --- | --- | --- |
-| `app/src/main/res/raw/beach.mp3` | Pixabay | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
-| `app/src/main/res/raw/forest.mp3` | Pixabay | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
-| `app/src/main/res/raw/lake.mp3` | Pixabay | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
+| `app/src/main/res/raw/beach.mp3` | 출처 확인 필요 (2026-11-15 교체) | 확인 필요 |
+| `app/src/main/res/raw/forest.mp3` | 출처 확인 필요 (2026-11-15 교체) | 확인 필요 |
+| `app/src/main/res/raw/lake.mp3` | 출처 확인 필요 (2026-11-15 교체, 강물 소리) | 확인 필요 |
 
 - 나루 앱의 밤 테마 기능 일부로 사용합니다.
-- Pixabay 라이선스에 따라 이 파일들을 앱과 분리해 단독으로 재배포하거나 판매할 수 없습니다.
+- TODO(확인 필요): 2026-11-15에 팀에서 받은 소리로 교체했습니다. 출처와 라이선스를 확인해 이 표를 채워야 합니다.
 
 ## 글꼴
 

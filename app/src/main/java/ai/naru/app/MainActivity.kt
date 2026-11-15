@@ -299,6 +299,7 @@ private fun NaruApp(app: NaruApplication) {
                 fake = app.vehicleGateway as? FakeVehicleGateway,
                 onSimulateWakeTime = campingViewModel::simulateWakeTime,
                 onAddSampleRecords = campingViewModel::addSampleRecords,
+                onLoadDemoRecords = campingViewModel::loadDemoRecords,
                 onClearRecords = campingViewModel::clearRecords,
                 modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
             )

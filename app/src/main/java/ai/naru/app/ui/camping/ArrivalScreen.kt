@@ -11,6 +11,7 @@ import ai.naru.app.camping.NarrationState
 import ai.naru.app.camping.arrival.ArrivalBadge
 import ai.naru.app.camping.arrival.ArrivalCard
 import ai.naru.app.camping.arrival.ArrivalPresenter
+import ai.naru.app.camping.arrival.ArrivalStatus
 import ai.naru.app.camping.arrival.CampingPermission
 import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.arrival.Site
@@ -138,7 +139,10 @@ private fun ArrivalResult(arrival: ArrivalState, narration: NarrationState?, act
         Row(verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(text = p.title, style = MaterialTheme.typography.headlineMedium, color = colors.text)
-                p.subtitle?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary) }
+                // AI 안내가 보이면 같은 내용의 부제는 숨겨 카드(막대그래프) 높이를 지킨다. 조회 실패의 다시 시도 안내는 남긴다
+                p.subtitle?.takeIf { narration == null || p.state == ArrivalStatus.LOOKUP_FAILED }?.let {
+                    Text(text = it, style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary)
+                }
             }
             Badge(p.badge, p.badgeText)
         }
@@ -199,6 +203,9 @@ private fun NarrationLine(narration: NarrationState) {
             text = if (narration.pending) "나루가 안내를 다듬고 있어요…" else narration.text,
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
+            // 안내가 길어져도 카드 높이를 지키도록 두 줄까지 (전체 문장은 음성으로 읽는다)
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

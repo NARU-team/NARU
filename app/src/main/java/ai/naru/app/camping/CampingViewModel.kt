@@ -359,8 +359,8 @@ class CampingViewModel(
 
     /**
      * 차량 위치로 도착 장소를 찾는다 (기획서 "위치와 장소 유형… 조회", 이슈 #44).
-     * - 시연 지역 근처면 그 장소로 바로 판정
-     * - 아니면 현재 위치의 날씨·일출·물때를 받아 두고 장소 유형을 묻는다
+     * - 근처 실제 야영장(고캠핑)이 있으면 가까운 3곳을 먼저 보여 준다 ([지금 이 자리] → 장소 유형, [시연 지역에서 고르기])
+     * - 없으면 시연 지역 근처는 바로 판정, 아니면 현재 위치의 날씨·일출·물때를 받아 두고 장소 유형을 묻는다
      * - 권한 없음·미지원·위치 없음·서버 실패면 시연 지역 고르기로 대체
      */
     fun locate() {
@@ -372,15 +372,18 @@ class CampingViewModel(
             val located = here?.let { siteRepository.conditionsAt(it) }
             if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
             _state.update { it.copy(locating = false) }
+            if (located == null) {
+                Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
+                return@launch
+            }
+            // 시연 지역 근처여도 먼저 근처 실제 야영장 3곳을 보여 준다 (사용자 피드백 2026-11-15).
+            // 근처 야영장이 없을 때만 시연 지역은 바로 판정, 아니면 장소 유형을 묻는다
+            val nearby = siteRepository.nearby(here).orEmpty()
+            if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
             when {
-                located == null -> Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
+                nearby.isNotEmpty() -> _state.update { it.copy(hereConditions = located.conditions, nearbyPlaces = nearby) }
                 located.site != null -> showArrival(_state.value.sites.firstOrNull { it.id == located.site.id } ?: located.site, located.conditions, retried = false)
-                else -> {
-                    // 시연 지역이 아니면 근처 실제 야영장을 찾는다 (없거나 실패하면 장소 유형만 묻는다)
-                    val nearby = siteRepository.nearby(here).orEmpty()
-                    if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
-                    _state.update { it.copy(hereConditions = located.conditions, nearbyPlaces = nearby) }
-                }
+                else -> _state.update { it.copy(hereConditions = located.conditions, nearbyPlaces = emptyList()) }
             }
         }
     }

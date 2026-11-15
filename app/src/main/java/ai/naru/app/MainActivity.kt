@@ -32,9 +32,6 @@ import ai.naru.app.vehicle.FakeVehicleGateway
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
@@ -104,9 +101,7 @@ private fun NaruApp(app: NaruApplication) {
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
-      // 차량 시스템이 앱 창을 하단 바 뒤까지 늘리는 경우가 있다 (에뮬레이터 확인 2026-11-15: 창 아래가 하단 바에 가려 버튼이 잘림).
-      // 시스템 바·화면 잘림 영역만큼 안쪽으로 그린다. 겹치지 않으면 여백은 0이다
-      Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+      Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 세션이 없으면(대기) 홈, 있으면 차박 화면 (홈의 [시작]이 바로 차박을 시작한다, 이슈 #33)
             val state by campingViewModel.state.collectAsStateWithLifecycle()

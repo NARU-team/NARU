@@ -761,6 +761,21 @@ class CampingViewModel(
         }
     }
 
+    /**
+     * 개발용: 데모 영상용 지난 기록으로 바꾼다 (기존 기록은 지움). 홈에서 누른다.
+     * 오늘 밤 최저기온을 아직 모르면 데모 지역(태안)의 11월 밤 기온 근처인 [DEMO_MIN_TEMP_C]로 만든다.
+     */
+    fun loadDemoRecords() {
+        viewModelScope.launch {
+            val minTemp = _state.value.arrival?.conditions?.weather?.minTempC ?: DEMO_MIN_TEMP_C
+            recordStore.clear()
+            var records = emptyList<SessionRecord>()
+            for (record in SampleRecords.demo(clock(), minTemp)) records = recordStore.append(record)
+            _state.update { it.copy(records = records) }
+            updateBedtime { it }
+        }
+    }
+
     /** 개발용: 기록을 모두 지운다. */
     fun clearRecords() {
         viewModelScope.launch {
@@ -1253,6 +1268,9 @@ class CampingViewModel(
         const val MAX_HISTORY_TURNS = 6
         const val LISTEN_TIMEOUT_MS = 10_000L
         const val NOT_UNDERSTOOD = "이해하지 못했어요. 아래 예시처럼 말해 주세요."
+        /** 데모 기록의 기준 밤 최저기온 (태안 11월 밤 기온 근처). 오늘 최저와 ±5°C 안이면 비슷한 밤으로 쓰인다 */
+        const val DEMO_MIN_TEMP_C = 7f
+
         const val VOICE_UNAVAILABLE = "음성 입력을 쓸 수 없어요. 글로 입력해 주세요."
         const val DONE = "바꿨어요."
         const val KEPT = "그대로 둘게요."

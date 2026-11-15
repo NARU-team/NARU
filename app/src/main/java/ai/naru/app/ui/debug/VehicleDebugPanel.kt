@@ -35,6 +35,8 @@ fun VehicleDebugPanel(
     onSimulateWakeTime: () -> Unit,
     modifier: Modifier = Modifier,
     onAddSampleRecords: () -> Unit = {},
+    /** 데모 영상용 지난 기록으로 바꾸기 */
+    onLoadDemoRecords: () -> Unit = {},
     onClearRecords: () -> Unit = {},
 ) {
     Surface(
@@ -68,6 +70,7 @@ fun VehicleDebugPanel(
                 OutlinedButton(onClick = onSimulateWakeTime) { Text("기상 시각 도달") }
                 // 시연용: 에뮬레이터의 밤은 짧아 실제 기록으로는 예상 잔량이 나오지 않는다
                 OutlinedButton(onClick = onAddSampleRecords) { Text("샘플 기록 추가") }
+                OutlinedButton(onClick = onLoadDemoRecords) { Text("시연 기록 넣기") }
                 OutlinedButton(onClick = onClearRecords) { Text("기록 지우기") }
             }
         }

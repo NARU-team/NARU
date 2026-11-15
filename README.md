@@ -1,6 +1,8 @@
 # NARU | 나루
 ### 차에서 머무는 모든 순간을 나만의 쉼으로.
 
+<img width="8000" height="5115" alt="나루_차량화면_목업" src="https://github.com/user-attachments/assets/3addb8e1-b100-4ed9-bc9d-a29775ecc9fd" />
+
 **나루(NARU)는 장소와 차량 상태를 이해하고, 차박부터 짧은 낮잠까지 온도·조명·소리·기상 환경을 하나의 흐름으로 연결하는 차량용 AI 휴식 에이전트입니다.**
 
 **Pleos Connect 기반의 차량 특화 휴식 경험**을 제안합니다.

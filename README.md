@@ -9,6 +9,67 @@
 
 ---
 
+## 📦 앱 다운로드 · 실행 방법
+
+### 다운로드
+
+| 버전 | 파일 | 비고 |
+|---|---|---|
+| v0.1.0 | [NARU-v0.1.0.apk](https://github.com/NARU-team/NARU/releases/download/v0.1.0/NARU-v0.1.0.apk) | 시연용 debug 빌드 (차박 모드) |
+
+전체 릴리스 목록은 [Releases](https://github.com/NARU-team/NARU/releases)에서 볼 수 있습니다.
+
+### 실행 환경
+
+- Android Studio (최신 버전)
+- **Pleos Connect Emulator v2.1.0** (Android Automotive, API 34)
+  - Android Studio → SDK Manager → SDK Update Sites에 아래 주소 추가 후 시스템 이미지 설치
+    - Mac: `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-arm64-sys-img.xml`
+    - Windows/Linux: `https://nexus-playground.pleos.ai/repository/raw-releases/connect-avd/2.x/crp-sys-img.xml`
+  - Device Manager → Form Factor `Automotive` → `Pleos Connect v2.1.0`으로 AVD 생성
+  - AVD 설정에서 **Default boot = Cold boot** (Quick boot면 차량 기능이 동작하지 않음), RAM 4GB
+- 인터넷 연결 (날씨·물때·야영장 정보와 AI 안내는 중계 서버를 거쳐 받아 옵니다)
+
+### 설치·실행
+
+1. 에뮬레이터를 Cold boot로 켜고 부팅이 끝날 때까지 기다립니다.
+2. APK를 설치합니다. 에뮬레이터 화면에 APK 파일을 끌어다 놓거나, 터미널에서 아래 명령을 실행합니다.
+   ```bash
+   adb install -r NARU-v0.1.0.apk
+   ```
+3. 에뮬레이터 하단 앱 목록에서 **NARU**를 실행합니다. 또는:
+   ```bash
+   adb shell am start -n ai.naru.app/.MainActivity
+   ```
+4. 처음 실행하면 위치 권한을 허용합니다. (거부하면 시연 지역을 직접 고를 수 있습니다)
+5. 기어가 **P(주차)** 상태일 때 홈에서 **차박 모드 → 시작**을 누릅니다.
+
+### 공조·조명 제어 확인 (Virtual Console)
+
+에뮬레이터의 공조·조명 제어는 **Virtual Console이 열려 있는 동안에만** 반영됩니다.
+
+```bash
+adb forward tcp:8088 tcp:8088
+```
+
+브라우저에서 `http://127.0.0.1:8088/`을 열어 둔 채로 앱을 사용하세요. 기어(P/R/N/D), 배터리 잔량, 공조·조명 상태도 이 화면에서 바꾸거나 확인할 수 있습니다.
+
+> 💡 에뮬레이터가 무거워 멈추거나 재시작되면 다른 앱(브라우저 탭, 디자인 툴 등)을 줄이고 Cold boot로 다시 켜 주세요.
+
+### 소스에서 직접 빌드
+
+```bash
+git clone https://github.com/NARU-team/NARU.git
+cd NARU
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+- JDK 17, Android SDK 35가 필요합니다.
+- 결과물: `app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## 1. 프로젝트 소개
 
 | 항목 | 내용 |

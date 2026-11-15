@@ -87,6 +87,7 @@ fun RestoreSummary(report: RestoreReport) {
     val items = listOfNotNull(
         report.temperature?.let { "설정 온도" to it },
         report.ambient?.let { "앰비언트 조명" to it },
+        report.hvacPower?.let { "공조 전원" to it },
     )
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         when {

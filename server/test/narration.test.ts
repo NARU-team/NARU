@@ -19,7 +19,15 @@ test("아침 브리핑은 4문장까지 허용한다", () => {
   const morning = { 브리핑: ["배터리는 68% 남았어요.", "밤사이 0%를 썼어요.", "지금 바깥은 비, 13°C예요.", "차 안은 19.1°C예요."] };
   const text = "배터리는 68% 남았어요. 밤사이 0%를 썼어요. 바깥은 비가 오고 13°C예요. 차 안은 19.1°C예요.";
   assert.equal(validateOutput(text, morning, "MORNING"), text);
-  assert.equal(validateOutput(text, morning, "ARRIVAL"), null);
+  assert.equal(validateOutput(text + " 편히 쉬세요.", morning, "MORNING"), null);
+});
+
+test("도착은 날씨·물때·이용 정보·등급까지 5문장, 220자를 허용한다", () => {
+  const arrival = { 야간최저기온C: "13", 만조: "06:09" };
+  const text = "꽃지의 오늘 밤 안내예요. 최저 13도이고 비 예보가 있어요. 06:09 만조라 자는 동안 물이 높아져요. 차박 허용 여부는 안내판에서 확인해 주세요. 다른 장소로 이동을 권해요.";
+  assert.equal(validateOutput(text, arrival, "ARRIVAL"), text);
+  assert.equal(validateOutput(text + " 조심하세요.", arrival, "ARRIVAL"), null);
+  assert.equal(validateOutput("가".repeat(221), arrival, "ARRIVAL"), null);
 });
 
 test("잠들기 전은 배터리 주의까지 5문장을 허용한다", () => {
@@ -33,8 +41,8 @@ test("소수점은 문장 끝으로 세지 않는다", () => {
 });
 
 test("문장이 너무 많거나 길면 실패", () => {
-  assert.equal(validateOutput("하나. 둘. 셋. 넷.", facts), null);
-  assert.equal(validateOutput("가".repeat(181), facts), null);
+  assert.equal(validateOutput("하나. 둘. 셋. 넷. 다섯.", facts, "MORNING"), null);
+  assert.equal(validateOutput("가".repeat(181), facts, "MORNING"), null);
 });
 
 test("마크다운·이모지·괄호는 실패 (소리 내어 읽는 문장)", () => {

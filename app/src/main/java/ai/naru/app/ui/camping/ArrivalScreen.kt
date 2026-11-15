@@ -11,6 +11,7 @@ import ai.naru.app.camping.NarrationState
 import ai.naru.app.camping.arrival.ArrivalBadge
 import ai.naru.app.camping.arrival.ArrivalCard
 import ai.naru.app.camping.arrival.ArrivalPresenter
+import ai.naru.app.camping.arrival.ArrivalStatus
 import ai.naru.app.camping.arrival.CampingPermission
 import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.arrival.Site
@@ -21,12 +22,15 @@ import ai.naru.app.ui.components.NaruBadge
 import ai.naru.app.ui.components.NaruBottomBar
 import ai.naru.app.ui.components.NaruCard
 import ai.naru.app.ui.components.NaruChip
+import ai.naru.app.ui.components.NaruSkeleton
+import ai.naru.app.ui.components.NaruSkeletonCard
 import ai.naru.app.ui.components.NaruIconCircle
 import ai.naru.app.ui.components.NaruPrimaryButton
 import ai.naru.app.ui.components.NaruSecondaryButton
 import ai.naru.app.ui.components.NaruStepHeader
 import ai.naru.app.ui.theme.FigmaFrame
 import ai.naru.app.ui.theme.NaruIcons
+import ai.naru.app.ui.theme.NaruShapes
 import ai.naru.app.ui.theme.NaruSpacing
 import ai.naru.app.ui.theme.NaruTheme
 import androidx.compose.foundation.background
@@ -38,7 +42,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -97,8 +103,11 @@ fun ArrivalScreen(
             verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
         ) {
             NaruStepHeader(title = "도착 안내 1/3", onBack = actions.onBack)
+            val loadingName = (loadingSite?.name ?: loadingPlace?.name)?.removeSuffix(" (시연)")
             if (locating) {
-                Message("현재 위치를 확인하고 있어요…", "차량 위치로 오늘 밤 날씨와 물때를 찾아요.")
+                ArrivalLoading("현재 위치를 확인하고 있어요", "차량 위치로 근처 장소와 오늘 밤 날씨, 물때를 찾아요.", Modifier.weight(1f))
+            } else if (loadingName != null) {
+                ArrivalLoading("$loadingName 정보를 불러오고 있어요", "오늘 밤 날씨, 물때, 이용 정보를 조회해요.", Modifier.weight(1f))
             } else if (askPlaceType && nearbyPlaces.isNotEmpty() && !stayHere) {
                 NearbyPicker(nearbyPlaces, loadingPlace, actions, onStayHere = { stayHere = true }, Modifier.weight(1f))
             } else if (askPlaceType) {
@@ -130,7 +139,10 @@ private fun ArrivalResult(arrival: ArrivalState, narration: NarrationState?, act
         Row(verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(text = p.title, style = MaterialTheme.typography.headlineMedium, color = colors.text)
-                p.subtitle?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary) }
+                // AI 안내가 보이면 같은 내용의 부제는 숨겨 카드(막대그래프) 높이를 지킨다. 조회 실패의 다시 시도 안내는 남긴다
+                p.subtitle?.takeIf { narration == null || p.state == ArrivalStatus.LOOKUP_FAILED }?.let {
+                    Text(text = it, style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary)
+                }
             }
             Badge(p.badge, p.badgeText)
         }
@@ -149,6 +161,38 @@ private fun ArrivalResult(arrival: ArrivalState, narration: NarrationState?, act
     }
 }
 
+/**
+ * 불러오는 중: 결과 화면과 같은 배치(조회 줄 → 제목 → 카드 3장 → 하단 바)에 자리 표시를 보여 준다.
+ * 결과가 오면 같은 자리에 내용만 채워져 화면이 튀지 않는다.
+ */
+@Composable
+private fun ArrivalLoading(title: String, body: String, modifier: Modifier) {
+    val colors = NaruTheme.colors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(NaruIcons.Location, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(16.dp))
+            NaruSkeleton(Modifier.width(160.dp).height(14.dp))
+        }
+        Row(verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(text = title, style = MaterialTheme.typography.headlineMedium, color = colors.text)
+                Text(text = body, style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary)
+            }
+            NaruSkeleton(Modifier.width(110.dp).height(32.dp), NaruShapes.pill)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(NaruIcons.Sparkle, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
+            Text(text = "나루가 오늘 밤 정보를 모으고 있어요…", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+        }
+        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+            repeat(3) { NaruSkeletonCard(Modifier.weight(1f).fillMaxHeight()) }
+        }
+        NaruBottomBar(note = "조회 시점의 정보예요. 장소의 안전과 이용 가능 여부는 직접 확인해 주세요.") {
+            NaruSkeleton(Modifier.width(140.dp).height(48.dp))
+        }
+    }
+}
+
 /** 나루 AI 멘트 (판정은 위의 제목·배지가 규칙으로 정한 값) */
 @Composable
 private fun NarrationLine(narration: NarrationState) {
@@ -159,6 +203,9 @@ private fun NarrationLine(narration: NarrationState) {
             text = if (narration.pending) "나루가 안내를 다듬고 있어요…" else narration.text,
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
+            // 안내가 길어져도 카드 높이를 지키도록 두 줄까지 (전체 문장은 음성으로 읽는다)
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -305,14 +352,6 @@ private fun NearbyPicker(
 }
 
 private const val NEARBY_SHOWN = 3
-
-@Composable
-private fun Message(title: String, body: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(text = title, style = MaterialTheme.typography.headlineMedium, color = NaruTheme.colors.text)
-        Text(text = body, style = MaterialTheme.typography.bodyMedium, color = NaruTheme.colors.textTertiary)
-    }
-}
 
 private fun PlaceType.title() = when (this) {
     PlaceType.BEACH -> "해변"

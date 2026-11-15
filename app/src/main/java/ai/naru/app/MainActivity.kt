@@ -233,6 +233,7 @@ private fun NaruApp(app: NaruApplication) {
                         onTurnThemeOff = campingViewModel::turnThemeOff,
                         onTurnThemeOn = campingViewModel::turnThemeOn,
                         onToggleLight = campingViewModel::toggleLight,
+                        onAdjustTemperature = campingViewModel::adjustNightTemperature,
                         assistant = AssistantActions(
                             onAsk = campingViewModel::ask,
                             onToggleListening = campingViewModel::toggleListening,

@@ -71,4 +71,13 @@ class SettingsRestorerTest {
         assertEquals(RestoreReport(ControlResult.NotSupported, ControlResult.NotSupported), report)
         assertTrue(report.needsManualCheck)
     }
+
+    @Test
+    fun `차박 전에 꺼져 있던 공조는 온도를 되돌린 뒤 다시 끈다`() = runBlocking {
+        val fake = FakeVehicleGateway(targetTemperature = 24f)
+        val report = SettingsRestorer(fake).restore(VehicleBackup(targetTempC = 22f, ambient = null, hvacPowerOn = false))
+        assertEquals(ControlResult.Applied, report.temperature)
+        assertEquals(ControlResult.Applied, report.hvacPower)
+        assertEquals(false, fake.hvacPowerOn)
+    }
 }

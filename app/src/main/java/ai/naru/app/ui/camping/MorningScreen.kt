@@ -1,5 +1,6 @@
 package ai.naru.app.ui.camping
 
+import ai.naru.app.ui.components.naruShadow
 import ai.naru.app.camping.CampingUiState
 import ai.naru.app.camping.EndReason
 import ai.naru.app.camping.bedtime.ControlResult
@@ -102,7 +103,7 @@ private fun Wake(state: CampingUiState, actions: MorningScreenActions, modifier:
     val ink = lerp(Color.White, colors.text, brightness.value)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
-            Box(modifier = Modifier.weight(1.9f).fillMaxHeight().clip(NaruShapes.card).background(dawn)) {
+            Box(modifier = Modifier.weight(1.9f).fillMaxHeight().naruShadow(NaruShapes.card).clip(NaruShapes.card).background(dawn)) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Canvas(modifier = Modifier.size(260.dp)) {
                         drawCircle(colors.accent, style = Stroke(width = 14.dp.toPx()))
@@ -171,7 +172,7 @@ private fun Briefing(state: CampingUiState, actions: MorningScreenActions, modif
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // 배너
         Row(
-            modifier = Modifier.fillMaxWidth().clip(NaruShapes.card).background(colors.morningBrush).padding(horizontal = 24.dp, vertical = 18.dp),
+            modifier = Modifier.fillMaxWidth().naruShadow(NaruShapes.card).clip(NaruShapes.card).background(colors.morningBrush).padding(horizontal = 24.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

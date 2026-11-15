@@ -8,6 +8,7 @@ import ai.naru.app.camping.arrival.SiteConditions
 import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.camping.bedtime.BedtimeRules
+import ai.naru.app.camping.bedtime.BedtimeTexts
 import ai.naru.app.camping.bedtime.BedtimeSettings
 import ai.naru.app.camping.bedtime.NightPreparer
 import ai.naru.app.camping.bedtime.ControlResult
@@ -358,8 +359,8 @@ class CampingViewModel(
 
     /**
      * 차량 위치로 도착 장소를 찾는다 (기획서 "위치와 장소 유형… 조회", 이슈 #44).
-     * - 시연 지역 근처면 그 장소로 바로 판정
-     * - 아니면 현재 위치의 날씨·일출·물때를 받아 두고 장소 유형을 묻는다
+     * - 근처 실제 야영장(고캠핑)이 있으면 가까운 3곳을 먼저 보여 준다 ([지금 이 자리] → 장소 유형, [시연 지역에서 고르기])
+     * - 없으면 시연 지역 근처는 바로 판정, 아니면 현재 위치의 날씨·일출·물때를 받아 두고 장소 유형을 묻는다
      * - 권한 없음·미지원·위치 없음·서버 실패면 시연 지역 고르기로 대체
      */
     fun locate() {
@@ -370,16 +371,22 @@ class CampingViewModel(
             val here = location.lastKnown()
             val located = here?.let { siteRepository.conditionsAt(it) }
             if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
-            _state.update { it.copy(locating = false) }
+            if (located == null) {
+                _state.update { it.copy(locating = false) }
+                Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
+                return@launch
+            }
+            // 시연 지역 근처여도 먼저 근처 실제 야영장 3곳을 보여 준다 (사용자 피드백 2026-11-15).
+            // 근처 야영장 조회가 끝날 때까지 로딩 화면을 유지한다 (중간에 시연 지역 목록이 잠깐 보이지 않게)
+            val nearby = siteRepository.nearby(here).orEmpty()
+            if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
             when {
-                located == null -> Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
-                located.site != null -> showArrival(_state.value.sites.firstOrNull { it.id == located.site.id } ?: located.site, located.conditions, retried = false)
-                else -> {
-                    // 시연 지역이 아니면 근처 실제 야영장을 찾는다 (없거나 실패하면 장소 유형만 묻는다)
-                    val nearby = siteRepository.nearby(here).orEmpty()
-                    if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
-                    _state.update { it.copy(hereConditions = located.conditions, nearbyPlaces = nearby) }
+                nearby.isNotEmpty() -> _state.update { it.copy(locating = false, hereConditions = located.conditions, nearbyPlaces = nearby) }
+                located.site != null -> {
+                    _state.update { it.copy(locating = false) }
+                    showArrival(_state.value.sites.firstOrNull { it.id == located.site.id } ?: located.site, located.conditions, retried = false)
                 }
+                else -> _state.update { it.copy(locating = false, hereConditions = located.conditions, nearbyPlaces = emptyList()) }
             }
         }
     }
@@ -535,7 +542,18 @@ class CampingViewModel(
             _state.update {
                 it.copy(bedtime = withForecast(it, BedtimeState(settings, recommendation, arrival.conditions.sunrise, range, feedbackHint = hint, lightSupported = lightSupported)))
             }
+            speakSuggestion()
         }
+    }
+
+    /** 취침 준비 2/3의 나루 제안(규칙으로 만든 추천 문장)을 읽어 준다. 도착 멘트는 멈춘다 */
+    private fun speakSuggestion() {
+        val state = _state.value
+        val bedtime = state.bedtime ?: return
+        if (state.stage != CampingStage.BEDTIME_PREP) return
+        stopNarration()
+        val text = BedtimeTexts.suggestion(state.arrival?.conditions?.weather?.minTempC, bedtime.recommendation, bedtime.forecast, bedtime.feedbackHint)
+        if (state.voiceOn) voice.speak(text)
     }
 
     // --- 취침 준비 단계 ---
@@ -544,6 +562,27 @@ class CampingViewModel(
         val next = BedtimeRules.adjustTemperature(bedtime.settings.targetTempC, steps, bedtime.vehicleTempRange)
         bedtime.copy(settings = bedtime.settings.copy(targetTempC = next))
     }
+
+    /**
+     * 차박 중 [◀][▶]: 설정 온도를 한 칸 바꾸고 바로 차량에 적용한다.
+     * 사용자가 직접 누른 값만 적용한다 (자동 조정 아님). 지원 확인 → 적용 → 다시 조회, 실패해도 다시 시도하지 않는다.
+     */
+    fun adjustNightTemperature(steps: Int) {
+        if (_state.value.stage != CampingStage.NIGHT || _state.value.restoring) return
+        val bedtime = _state.value.bedtime ?: return
+        val next = BedtimeRules.adjustTemperature(bedtime.settings.targetTempC, steps, bedtime.vehicleTempRange)
+        if (next == bedtime.settings.targetTempC) return
+        updateBedtime { it.copy(settings = it.settings.copy(targetTempC = next)) }
+        nightTempJob?.cancel()
+        nightTempJob = viewModelScope.launch {
+            val result = nightPreparer.applyTemperature(next)
+            if (_state.value.stage != CampingStage.NIGHT) return@launch
+            _state.update { it.copy(temperatureApply = result) }
+            noteControl(ControlKind.TEMPERATURE, result)
+        }
+    }
+
+    private var nightTempJob: Job? = null
 
     fun adjustWakeTime(minutes: Long) = updateBedtime { bedtime ->
         val next = bedtime.settings.wakeAt.plusMinutes(minutes)
@@ -991,6 +1030,7 @@ class CampingViewModel(
             theme = bedtime?.settings?.theme,
             soundOn = state.soundOn,
             voiceOn = state.voiceOn,
+            outsideMinTempC = state.arrival?.conditions?.weather?.minTempC,
         )
     }
 

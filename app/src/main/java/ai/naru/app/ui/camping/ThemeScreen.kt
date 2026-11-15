@@ -1,5 +1,6 @@
 package ai.naru.app.ui.camping
 
+import ai.naru.app.ui.components.naruShadow
 import ai.naru.app.camping.BedtimeState
 import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.ui.components.BadgeTone
@@ -129,7 +130,7 @@ private fun SummaryBar(bedtime: BedtimeState, onStartNight: () -> Unit) {
     val colors = NaruTheme.colors
     val s = bedtime.settings
     Row(
-        modifier = Modifier.fillMaxWidth().clip(NaruShapes.card).background(colors.card).padding(horizontal = NaruSpacing.card, vertical = 14.dp),
+        modifier = Modifier.fillMaxWidth().naruShadow(NaruShapes.card).clip(NaruShapes.card).background(colors.card).padding(horizontal = NaruSpacing.card, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

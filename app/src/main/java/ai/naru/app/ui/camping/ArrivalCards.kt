@@ -15,6 +15,7 @@ import ai.naru.app.ui.theme.NaruTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.time.format.DateTimeFormatter
 
@@ -41,6 +43,12 @@ private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /** 시간별 막대의 최대 높이 */
 private val BAR_MAX_HEIGHT = 48.dp
+
+/** 막대가 아무리 낮아져도 남길 높이 */
+private val BAR_MIN_HEIGHT = 16.dp
+
+/** 막대 위 값 글자 + 아래 시각 글자 + 간격이 차지하는 높이 */
+private val BAR_TEXT_SPACE = 46.dp
 
 /**
  * 도착 안내 카드 (피그마 v2 갱신): 이름 → 큰 값 → 짧은 설명 → 그림(시간별 막대 / 물때 시간표 / 시설 목록) → 출처.
@@ -86,13 +94,19 @@ private fun Bars(detail: ArrivalCardDetail.Bars, modifier: Modifier) {
     val colors = NaruTheme.colors
     val strong = if (detail.highlightWarning) colors.danger else colors.accent
     val weak = if (detail.highlightWarning) colors.danger.copy(alpha = 0.22f) else colors.accent.copy(alpha = 0.15f)
-    Row(modifier = modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-        for (bar in detail.bars) BarColumn(bar, if (bar.highlight) strong else weak, if (bar.highlight) strong else colors.text, Modifier.weight(1f).fillMaxHeight())
+    // 카드가 낮아지면(AI 안내가 두 줄이 되는 등) 막대를 남은 높이에 맞춰 줄인다. 값·시각 글자 자리는 남긴다
+    BoxWithConstraints(modifier = modifier.padding(top = 8.dp)) {
+        val barMax = (maxHeight - BAR_TEXT_SPACE).coerceIn(BAR_MIN_HEIGHT, BAR_MAX_HEIGHT)
+        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            for (bar in detail.bars) {
+                BarColumn(bar, if (bar.highlight) strong else weak, if (bar.highlight) strong else colors.text, barMax, Modifier.weight(1f).fillMaxHeight())
+            }
+        }
     }
 }
 
 @Composable
-private fun BarColumn(bar: Bar, barColor: androidx.compose.ui.graphics.Color, valueColor: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+private fun BarColumn(bar: Bar, barColor: androidx.compose.ui.graphics.Color, valueColor: androidx.compose.ui.graphics.Color, barMax: Dp, modifier: Modifier) {
     val colors = NaruTheme.colors
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.weight(1f))
@@ -100,7 +114,7 @@ private fun BarColumn(bar: Bar, barColor: androidx.compose.ui.graphics.Color, va
         Spacer(Modifier.height(4.dp))
         // 막대 높이는 고정 최대값에 비례 (카드가 낮아도 납작해지지 않게)
         Box(
-            modifier = Modifier.width(12.dp).height(BAR_MAX_HEIGHT * bar.fraction.coerceIn(0.1f, 1f))
+            modifier = Modifier.width(12.dp).height(barMax * bar.fraction.coerceIn(0.1f, 1f))
                 .clip(NaruShapes.pill).background(barColor),
         )
         Spacer(Modifier.height(6.dp))

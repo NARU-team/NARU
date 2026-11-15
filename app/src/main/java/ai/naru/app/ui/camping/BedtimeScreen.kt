@@ -1,5 +1,6 @@
 package ai.naru.app.ui.camping
 
+import ai.naru.app.ui.components.naruShadow
 import ai.naru.app.camping.AssistantState
 import ai.naru.app.camping.BedtimeState
 import ai.naru.app.camping.TempForecast
@@ -13,6 +14,8 @@ import ai.naru.app.ui.components.NaruBadge
 import ai.naru.app.ui.components.NaruBottomBar
 import ai.naru.app.ui.components.NaruCard
 import ai.naru.app.ui.components.NaruChip
+import ai.naru.app.ui.components.NaruSkeleton
+import ai.naru.app.ui.components.NaruSkeletonCard
 import ai.naru.app.ui.components.NaruIconCircle
 import ai.naru.app.ui.components.NaruPrimaryButton
 import ai.naru.app.ui.components.NaruSecondaryButton
@@ -76,7 +79,6 @@ data class BedtimeScreenActions(
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /** 나루 제안 패널의 요청 칩 (발화 해석으로 보낸다) */
-private val SUGGESTION_CHIPS = listOf("더 따뜻하게", "배터리 아끼기", "7시에 깨워줘")
 
 /** 피그마 v2 "취침 준비 2/3" (이슈 #37) */
 @Composable
@@ -95,7 +97,20 @@ fun BedtimeScreen(
         Column(modifier = Modifier.fillMaxSize().padding(NaruSpacing.panel), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NaruStepHeader(title = "취침 준비 2/3", onBack = actions.onBack, onClose = actions.onClose)
             if (bedtime == null) {
-                Text(text = "오늘 밤 설정을 준비하고 있어요.", style = MaterialTheme.typography.bodyLarge, color = NaruTheme.colors.textSecondary)
+                // 불러오는 중: 결과와 같은 배치(나루 제안 → 온도 카드 + 기상 카드)에 자리 표시
+                Column(
+                    modifier = Modifier.fillMaxWidth().naruShadow(NaruShapes.card).clip(NaruShapes.card).background(NaruTheme.colors.accentSurface)
+                        .padding(horizontal = NaruSpacing.card, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(text = "나루 제안", style = MaterialTheme.typography.labelMedium, color = NaruTheme.colors.accent)
+                    Text(text = "오늘 밤 날씨와 배터리로 추천 온도를 계산하고 있어요…", style = MaterialTheme.typography.titleMedium, color = NaruTheme.colors.text)
+                    NaruSkeleton(Modifier.width(320.dp).height(28.dp), NaruShapes.pill)
+                }
+                Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+                    NaruSkeletonCard(Modifier.weight(1.9f).fillMaxHeight())
+                    NaruSkeletonCard(Modifier.weight(1f).fillMaxHeight())
+                }
                 return@Column
             }
             SuggestionPanel(bedtime, minTempC, batteryPercent, assistant, voiceInputAvailable, actions.assistant, voiceOn, actions.onToggleVoice)
@@ -139,7 +154,7 @@ private fun SuggestionPanel(
         else -> BedtimeTexts.suggestion(minTempC, bedtime.recommendation, bedtime.forecast, bedtime.feedbackHint)
     }
     Column(
-        modifier = Modifier.fillMaxWidth().clip(NaruShapes.card).background(colors.accentSurface)
+        modifier = Modifier.fillMaxWidth().naruShadow(NaruShapes.card).clip(NaruShapes.card).background(colors.accentSurface)
             .padding(horizontal = NaruSpacing.card, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -171,7 +186,7 @@ private fun SuggestionPanel(
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (assistant.available) {
-                for (chip in SUGGESTION_CHIPS) NaruSecondaryButton(text = chip, onClick = { actions.onAsk(chip) }, enabled = !assistant.busy)
+                for (chip in BedtimeTexts.suggestionChips(bedtime.settings, bedtime.sunrise)) NaruSecondaryButton(text = chip, onClick = { actions.onAsk(chip) }, enabled = !assistant.busy)
             }
             Spacer(Modifier.weight(1f))
             if (assistant.available && voiceInputAvailable) {
@@ -282,26 +297,24 @@ private fun WakeCard(bedtime: BedtimeState, actions: BedtimeScreenActions, modif
     var picking by remember { mutableStateOf(false) }
     val settings = bedtime.settings
     NaruCard(modifier = modifier) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NaruIconCircle(NaruIcons.Sunrise)
                 Text(text = "기상 시각", style = MaterialTheme.typography.titleMedium, color = colors.text)
             }
-            Text(text = settings.wakeAt.format(hhmm), style = MaterialTheme.typography.displaySmall, color = colors.text)
+            // 카드가 피그마보다 낮아 [직접 설정]이 아래에서 잘렸다 → 시각 옆에 둔다
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = settings.wakeAt.format(hhmm), style = MaterialTheme.typography.displaySmall, color = colors.text, modifier = Modifier.weight(1f))
+                NaruSecondaryButton(text = "직접 설정", onClick = { picking = true })
+            }
             bedtime.sunrise?.let { sunrise ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(text = "일출에 맞추기", style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.weight(1f))
                     NaruSwitch(checked = settings.wakeBasis == WakeBasis.SUNRISE, onCheckedChange = actions.onSetSunriseWake)
                 }
-                Text(
-                    text = "일출 ${sunrise.format(hhmm)}\n" +
-                        if (settings.wakeBasis == WakeBasis.SUNRISE) "해 뜨기 ${ai.naru.app.camping.bedtime.BedtimeThresholds.SUNRISE_LEAD_MINUTES}분 전에 깨워 드려요" else "직접 정한 시각에 깨워 드려요",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.textTertiary,
-                )
+                // 피그마: 일출은 작은 칩 한 줄
+                NaruChip("일출 ${sunrise.format(hhmm)}", icon = NaruIcons.Sunrise)
             }
-            Spacer(Modifier.weight(1f))
-            NaruSecondaryButton(text = "직접 설정", onClick = { picking = true })
         }
     }
     if (picking) {

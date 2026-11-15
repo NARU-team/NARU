@@ -33,6 +33,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Surface
@@ -97,7 +101,8 @@ private fun NaruApp(app: NaruApplication) {
     }
 
     Surface(modifier = Modifier.fillMaxSize()) {
-        Column {
+      Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
             // 세션이 없으면(대기) 홈, 있으면 차박 화면 (홈의 [시작]이 바로 차박을 시작한다, 이슈 #33)
             val state by campingViewModel.state.collectAsStateWithLifecycle()
             when {
@@ -285,16 +290,18 @@ private fun NaruApp(app: NaruApplication) {
                 }
             }
             }
-
-            if (BuildConfig.DEBUG) {
-                VehicleDebugPanel(
-                    fake = app.vehicleGateway as? FakeVehicleGateway,
-                    onSimulateWakeTime = campingViewModel::simulateWakeTime,
-                    onAddSampleRecords = campingViewModel::addSampleRecords,
-                    onClearRecords = campingViewModel::clearRecords,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
         }
+
+        // 개발용 패널은 화면 위에 띄운다 (자리를 차지하면 피그마 높이가 줄어 카드 아래가 잘렸음)
+        if (BuildConfig.DEBUG) {
+            VehicleDebugPanel(
+                fake = app.vehicleGateway as? FakeVehicleGateway,
+                onSimulateWakeTime = campingViewModel::simulateWakeTime,
+                onAddSampleRecords = campingViewModel::addSampleRecords,
+                onClearRecords = campingViewModel::clearRecords,
+                modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
+            )
+        }
+      }
     }
 }

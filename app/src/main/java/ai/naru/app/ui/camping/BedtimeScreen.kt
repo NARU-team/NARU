@@ -92,7 +92,7 @@ fun BedtimeScreen(
     voiceOn: Boolean = true,
 ) {
     FigmaFrame(modifier = modifier.fillMaxSize().background(NaruTheme.colors.background)) {
-        Column(modifier = Modifier.fillMaxSize().padding(NaruSpacing.panel), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(NaruSpacing.panel), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NaruStepHeader(title = "취침 준비 2/3", onBack = actions.onBack, onClose = actions.onClose)
             if (bedtime == null) {
                 Text(text = "오늘 밤 설정을 준비하고 있어요.", style = MaterialTheme.typography.bodyLarge, color = NaruTheme.colors.textSecondary)
@@ -139,8 +139,9 @@ private fun SuggestionPanel(
         else -> BedtimeTexts.suggestion(minTempC, bedtime.recommendation, bedtime.forecast, bedtime.feedbackHint)
     }
     Column(
-        modifier = Modifier.fillMaxWidth().clip(NaruShapes.card).background(colors.accentSurface).padding(NaruSpacing.card),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(NaruShapes.card).background(colors.accentSurface)
+            .padding(horizontal = NaruSpacing.card, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(modifier = Modifier.size(32.dp).clip(NaruShapes.pill).background(colors.accent), contentAlignment = Alignment.Center) {
@@ -193,7 +194,6 @@ private fun TemperatureCard(bedtime: BedtimeState, cabinTempC: Float?, onSetTemp
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Spacer(Modifier.height(12.dp))
                     NaruBadge("나루 추천 ${bedtime.recommendation.celsius.formatTemp()}°C", BadgeTone.ACCENT)
                     Row(
                         modifier = Modifier.fillMaxWidth().clip(NaruShapes.button).border(1.5.dp, colors.segment, NaruShapes.button)
@@ -255,7 +255,7 @@ private fun ForecastRow(row: TempForecast, selected: Boolean) {
     val colors = NaruTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth().clip(NaruShapes.button).background(if (selected) colors.accentContainer else androidx.compose.ui.graphics.Color.Transparent)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

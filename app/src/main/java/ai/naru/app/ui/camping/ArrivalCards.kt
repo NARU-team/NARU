@@ -39,6 +39,9 @@ import java.time.format.DateTimeFormatter
 
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
+/** 시간별 막대의 최대 높이 */
+private val BAR_MAX_HEIGHT = 48.dp
+
 /**
  * 도착 안내 카드 (피그마 v2 갱신): 이름 → 큰 값 → 짧은 설명 → 그림(시간별 막대 / 물때 시간표 / 시설 목록) → 출처.
  * 그림이 없으면(예보 부족, 조회 실패) 설명 글만 보여 준다.
@@ -53,7 +56,12 @@ fun ArrivalInfoCard(card: ArrivalCard, modifier: Modifier = Modifier) {
                 NaruIconCircle(card.kind.icon(card.warning), tone = tone)
                 Text(text = card.label, style = MaterialTheme.typography.titleMedium, color = if (card.warning) colors.danger else colors.textSecondary)
             }
-            Text(text = card.value, style = MaterialTheme.typography.headlineLarge, color = colors.text)
+            // 이용 정보는 글이 길어 한 단계 작게 (피그마도 작게 씀)
+            Text(
+                text = card.value,
+                style = if (card.kind == ArrivalCardKind.USAGE) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineLarge,
+                color = colors.text,
+            )
             when (val detail = card.detail) {
                 is ArrivalCardDetail.Bars -> {
                     if (card.description.isNotEmpty()) Text(text = card.description, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
@@ -87,16 +95,14 @@ private fun Bars(detail: ArrivalCardDetail.Bars, modifier: Modifier) {
 private fun BarColumn(bar: Bar, barColor: androidx.compose.ui.graphics.Color, valueColor: androidx.compose.ui.graphics.Color, modifier: Modifier) {
     val colors = NaruTheme.colors
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.Bottom) {
-                Text(text = bar.valueText, style = MaterialTheme.typography.labelLarge, color = valueColor)
-                Spacer(Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier.width(12.dp).fillMaxHeight(bar.fraction.coerceIn(0.1f, 1f) * 0.8f)
-                        .clip(NaruShapes.pill).background(barColor),
-                )
-            }
-        }
+        Spacer(Modifier.weight(1f))
+        Text(text = bar.valueText, style = MaterialTheme.typography.labelLarge, color = valueColor)
+        Spacer(Modifier.height(4.dp))
+        // 막대 높이는 고정 최대값에 비례 (카드가 낮아도 납작해지지 않게)
+        Box(
+            modifier = Modifier.width(12.dp).height(BAR_MAX_HEIGHT * bar.fraction.coerceIn(0.1f, 1f))
+                .clip(NaruShapes.pill).background(barColor),
+        )
         Spacer(Modifier.height(6.dp))
         Text(text = bar.label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
     }

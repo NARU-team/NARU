@@ -235,7 +235,7 @@ private const val ILLUSTRATION_WEIGHT = 0.36f
  * 데모 영상 녹화용: 쉼표 모드 카드를 준비된 것처럼 보이게 한다 (버튼 활성, 피그마 칩 문구 "지난번 30분, 23°C").
  * TODO(녹화 후 되돌리기): 쉼표 모드가 연결되면 지우거나 false로. 칩 문구는 실제 기록이 아니다.
  */
-private const val REST_MODE_RECORDING = true
+private const val REST_MODE_RECORDING = false
 private val PEACH = Color(0xFFFFE6CB)
 private val PEACH_LIGHT = Color(0xFFFFF3E8)
 private val SUN = Color(0xFFFFD2A6)

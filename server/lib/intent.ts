@@ -74,6 +74,8 @@ export interface IntentContext {
   theme: string | null;
   soundOn: boolean | null;
   voiceOn: boolean | null;
+  /** 오늘 밤 실외 최저기온. 배터리 아끼기 요청에 쓴다 (앱이 안 보내면 null) */
+  outsideMinTempC?: number | null;
 }
 
 export interface IntentRequest {
@@ -128,6 +130,7 @@ export function instructions(context: IntentContext): string {
     `지금 단계에서 제안할 수 있는 동작:\n${allowed}`,
     "목록에 없는 동작은 이 단계에서 바꿀 수 없다고 답한다 (예: 밤 단계에서는 기상 시각·테마를 바꿀 수 없다).",
     "목록에 없는 요청(차량 이동, 문 열기, 기상 시각 외의 알람 등)은 제안하지 말고 할 수 없다고 짧게 답한다.",
+    "'배터리 아끼기', '배터리 절약'은 공조가 덜 일하도록 설정 온도를 바깥 기온 쪽으로 1도 옮기는 ADJUST_TEMPERATURE로 제안한다. outsideMinTempC가 설정 온도보다 낮으면 deltaC=-1, 높으면 +1이다. outsideMinTempC가 null이면 deltaC=-1로 제안한다. reply에 배터리를 아끼려고 온도를 바꾸는 것이라고 짧게 말한다.",
     "값을 정할 수 없으면 needsClarification=true, proposals는 비우고 reply로 되묻는다 (예: '몇 시에 깨워 드릴까요?').",
     "이전 대화를 참고해 '아니 1도 더', '그거 말고 숲으로' 같은 고쳐 말하기를 해석한다. 이전 제안을 고칠 때는 지금 설정 기준의 최종값을 제안한다.",
     "지금 설정과 같은 값은 제안하지 않는다. reply는 한국어 존댓말 한두 문장, 이모지·마크다운 금지.",

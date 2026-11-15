@@ -15,6 +15,8 @@ data class IntentContext(
     val theme: PlaceType?,
     val soundOn: Boolean,
     val voiceOn: Boolean,
+    /** 오늘 밤 실외 최저기온. "배터리 아끼기"를 바깥 기온 쪽으로 온도를 옮기는 제안으로 바꾸는 데 쓴다 */
+    val outsideMinTempC: Float? = null,
 )
 
 /**

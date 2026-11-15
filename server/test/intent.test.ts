@@ -77,3 +77,12 @@ test("스키마는 strict 조건(모든 필드 필수, 추가 필드 금지)을 
 test("키가 없으면 호출하지 않고 null", async () => {
   assert.equal(await interpret({ utterance: "x", history: [], context: bedtime }, { apiKey: undefined, model: "m", log: () => {} }), null);
 });
+
+test("배터리 아끼기는 바깥 기온 쪽으로 1도 옮기는 제안으로 안내한다", () => {
+  const text = instructions({
+    stage: "BEDTIME_PREP", targetTempC: 23, tempMinC: 15, tempMaxC: 30, wakeAt: "07:00", sunrise: "07:12",
+    theme: "BEACH", soundOn: true, voiceOn: true, outsideMinTempC: 8,
+  });
+  assert.match(text, /배터리 아끼기/);
+  assert.match(text, /outsideMinTempC/);
+});

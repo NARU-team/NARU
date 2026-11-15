@@ -79,7 +79,6 @@ data class BedtimeScreenActions(
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /** 나루 제안 패널의 요청 칩 (발화 해석으로 보낸다) */
-private val SUGGESTION_CHIPS = listOf("더 따뜻하게", "배터리 아끼기", "7시에 깨워줘")
 
 /** 피그마 v2 "취침 준비 2/3" (이슈 #37) */
 @Composable
@@ -187,7 +186,7 @@ private fun SuggestionPanel(
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (assistant.available) {
-                for (chip in SUGGESTION_CHIPS) NaruSecondaryButton(text = chip, onClick = { actions.onAsk(chip) }, enabled = !assistant.busy)
+                for (chip in BedtimeTexts.suggestionChips(bedtime.settings, bedtime.sunrise)) NaruSecondaryButton(text = chip, onClick = { actions.onAsk(chip) }, enabled = !assistant.busy)
             }
             Spacer(Modifier.weight(1f))
             if (assistant.available && voiceInputAvailable) {

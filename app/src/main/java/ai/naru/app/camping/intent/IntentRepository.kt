@@ -77,6 +77,7 @@ object IntentJson {
             .put("theme", context.theme?.name ?: JSONObject.NULL)
             .put("soundOn", context.soundOn)
             .put("voiceOn", context.voiceOn)
+            .put("outsideMinTempC", context.outsideMinTempC?.toDouble() ?: JSONObject.NULL)
         return JSONObject().put("utterance", utterance).put("history", turns).put("context", ctx).toString()
     }
 

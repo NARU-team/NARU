@@ -1030,6 +1030,7 @@ class CampingViewModel(
             theme = bedtime?.settings?.theme,
             soundOn = state.soundOn,
             voiceOn = state.voiceOn,
+            outsideMinTempC = state.arrival?.conditions?.weather?.minTempC,
         )
     }
 

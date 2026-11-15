@@ -31,4 +31,17 @@ object BedtimeTexts {
     }
 
     private fun Float.formatTemp(): String = if (this % 1f == 0f) toInt().toString() else "%.1f".format(this)
+
+    /**
+     * 나루 제안 칩. 누르면 그 문장을 발화처럼 해석해 제안을 만든다.
+     * 기상 칩은 지금 설정과 겹치지 않게 고른다 (이미 7시면 "7시에 깨워줘"는 바꿀 게 없음).
+     */
+    fun suggestionChips(settings: BedtimeSettings, sunrise: java.time.LocalTime?): List<String> {
+        val wake = when {
+            sunrise != null && settings.wakeBasis != WakeBasis.SUNRISE -> "일출에 깨워줘"
+            settings.wakeAt != java.time.LocalTime.of(7, 0) -> "7시에 깨워줘"
+            else -> "6시 반에 깨워줘"
+        }
+        return listOf("더 따뜻하게", "배터리 아끼기", wake)
+    }
 }

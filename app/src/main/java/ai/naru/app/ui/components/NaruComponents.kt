@@ -28,9 +28,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -88,12 +92,22 @@ fun NaruCard(
         CardTone.WARNING -> colors.warningCard
         CardTone.SELECTED -> colors.accentContainer
     }
-    var m = modifier.clip(NaruShapes.card).background(background)
+    var m = modifier.naruShadow(NaruShapes.card).clip(NaruShapes.card).background(background)
     if (tone == CardTone.SELECTED) m = m.border(2.dp, colors.accent, NaruShapes.card)
     if (tone == CardTone.WARNING) m = m.border(2.dp, colors.danger, NaruShapes.card)
     if (onClick != null) m = m.clickable(onClick = onClick)
     Box(modifier = m.padding(contentPadding)) { content() }
 }
+
+/**
+ * 카드가 배경(연회색)과 분리되어 보이도록 아주 옅은 그림자 (피그마 카드 그림자 근사값).
+ * 그림자 색을 옅게 지정해 AAOS 기본 그림자보다 부드럽게 한다.
+ */
+fun Modifier.naruShadow(shape: Shape): Modifier =
+    shadow(elevation = CARD_ELEVATION, shape = shape, clip = false, ambientColor = SHADOW_COLOR, spotColor = SHADOW_COLOR)
+
+private val CARD_ELEVATION = 6.dp
+private val SHADOW_COLOR = Color(0x33101828)
 
 /** 아이콘 원 (카드 이름 앞) */
 @Composable
@@ -343,3 +357,40 @@ fun NaruConfirmDialog(
         }
     }
 }
+
+/**
+ * 불러오는 중 자리 표시 (스켈레톤). 실제 카드와 같은 자리·모양에 연회색 막대가 천천히 깜빡인다.
+ * 로딩 화면이 결과 화면과 같은 배치로 보이게 해서 화면이 튀지 않게 한다.
+ */
+@Composable
+fun NaruSkeleton(modifier: Modifier = Modifier, shape: Shape = NaruShapes.button) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "skeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(SKELETON_PULSE_MS),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "skeletonAlpha",
+    )
+    Box(modifier = modifier.clip(shape).background(NaruTheme.colors.track.copy(alpha = alpha)))
+}
+
+/** 스켈레톤 카드: 아이콘 원 + 이름 줄 + 큰 값 줄 + 설명 줄 */
+@Composable
+fun NaruSkeletonCard(modifier: Modifier = Modifier) {
+    NaruCard(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NaruSkeleton(Modifier.size(36.dp), NaruShapes.pill)
+                NaruSkeleton(Modifier.width(96.dp).height(16.dp))
+            }
+            NaruSkeleton(Modifier.width(150.dp).height(32.dp))
+            NaruSkeleton(Modifier.fillMaxWidth(0.8f).height(14.dp))
+            NaruSkeleton(Modifier.fillMaxWidth(0.55f).height(14.dp))
+        }
+    }
+}
+
+private const val SKELETON_PULSE_MS = 700

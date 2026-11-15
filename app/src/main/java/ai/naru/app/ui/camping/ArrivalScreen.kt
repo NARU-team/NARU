@@ -21,12 +21,15 @@ import ai.naru.app.ui.components.NaruBadge
 import ai.naru.app.ui.components.NaruBottomBar
 import ai.naru.app.ui.components.NaruCard
 import ai.naru.app.ui.components.NaruChip
+import ai.naru.app.ui.components.NaruSkeleton
+import ai.naru.app.ui.components.NaruSkeletonCard
 import ai.naru.app.ui.components.NaruIconCircle
 import ai.naru.app.ui.components.NaruPrimaryButton
 import ai.naru.app.ui.components.NaruSecondaryButton
 import ai.naru.app.ui.components.NaruStepHeader
 import ai.naru.app.ui.theme.FigmaFrame
 import ai.naru.app.ui.theme.NaruIcons
+import ai.naru.app.ui.theme.NaruShapes
 import ai.naru.app.ui.theme.NaruSpacing
 import ai.naru.app.ui.theme.NaruTheme
 import androidx.compose.foundation.background
@@ -38,7 +41,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -97,8 +102,11 @@ fun ArrivalScreen(
             verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap),
         ) {
             NaruStepHeader(title = "도착 안내 1/3", onBack = actions.onBack)
+            val loadingName = (loadingSite?.name ?: loadingPlace?.name)?.removeSuffix(" (시연)")
             if (locating) {
-                Message("현재 위치를 확인하고 있어요…", "차량 위치로 오늘 밤 날씨와 물때를 찾아요.")
+                ArrivalLoading("현재 위치를 확인하고 있어요", "차량 위치로 근처 장소와 오늘 밤 날씨, 물때를 찾아요.", Modifier.weight(1f))
+            } else if (loadingName != null) {
+                ArrivalLoading("$loadingName 정보를 불러오고 있어요", "오늘 밤 날씨, 물때, 이용 정보를 조회해요.", Modifier.weight(1f))
             } else if (askPlaceType && nearbyPlaces.isNotEmpty() && !stayHere) {
                 NearbyPicker(nearbyPlaces, loadingPlace, actions, onStayHere = { stayHere = true }, Modifier.weight(1f))
             } else if (askPlaceType) {
@@ -145,6 +153,38 @@ private fun ArrivalResult(arrival: ArrivalState, narration: NarrationState?, act
                 NaruSecondaryButton(text = p.buttons.confirmText, onClick = actions.onConfirm)
             }
             if (p.buttons.showRetry) NaruPrimaryButton(text = "한 번 더 불러오기", onClick = actions.onRetry)
+        }
+    }
+}
+
+/**
+ * 불러오는 중: 결과 화면과 같은 배치(조회 줄 → 제목 → 카드 3장 → 하단 바)에 자리 표시를 보여 준다.
+ * 결과가 오면 같은 자리에 내용만 채워져 화면이 튀지 않는다.
+ */
+@Composable
+private fun ArrivalLoading(title: String, body: String, modifier: Modifier) {
+    val colors = NaruTheme.colors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(NaruIcons.Location, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(16.dp))
+            NaruSkeleton(Modifier.width(160.dp).height(14.dp))
+        }
+        Row(verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(text = title, style = MaterialTheme.typography.headlineMedium, color = colors.text)
+                Text(text = body, style = MaterialTheme.typography.bodyMedium, color = colors.textTertiary)
+            }
+            NaruSkeleton(Modifier.width(110.dp).height(32.dp), NaruShapes.pill)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(NaruIcons.Sparkle, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
+            Text(text = "나루가 오늘 밤 정보를 모으고 있어요…", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+        }
+        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
+            repeat(3) { NaruSkeletonCard(Modifier.weight(1f).fillMaxHeight()) }
+        }
+        NaruBottomBar(note = "조회 시점의 정보예요. 장소의 안전과 이용 가능 여부는 직접 확인해 주세요.") {
+            NaruSkeleton(Modifier.width(140.dp).height(48.dp))
         }
     }
 }
@@ -305,14 +345,6 @@ private fun NearbyPicker(
 }
 
 private const val NEARBY_SHOWN = 3
-
-@Composable
-private fun Message(title: String, body: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(text = title, style = MaterialTheme.typography.headlineMedium, color = NaruTheme.colors.text)
-        Text(text = body, style = MaterialTheme.typography.bodyMedium, color = NaruTheme.colors.textTertiary)
-    }
-}
 
 private fun PlaceType.title() = when (this) {
     PlaceType.BEACH -> "해변"

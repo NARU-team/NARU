@@ -1,6 +1,10 @@
 package ai.naru.app.camping.narration
 
 import ai.naru.app.camping.arrival.ArrivalAssessment
+import ai.naru.app.camping.arrival.ArrivalReason
+import ai.naru.app.camping.arrival.CampingPermission
+import ai.naru.app.camping.arrival.PlaceType
+import ai.naru.app.camping.arrival.Precipitation
 import ai.naru.app.camping.arrival.Site
 import ai.naru.app.camping.arrival.SiteConditions
 import ai.naru.app.camping.arrival.formatTemp
@@ -34,24 +38,85 @@ object NarrationScripts {
 
     private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
+    /**
+     * 도착 안내 멘트: 화면의 세 카드(날씨 → 물때 또는 일출 → 이용 정보) 순서로 설명하고 등급 안내로 끝낸다.
+     * 값은 카드와 같은 규칙 결과만 쓴다.
+     */
     fun arrival(site: Site, conditions: SiteConditions, assessment: ArrivalAssessment): NarrationRequest {
         val reasons = assessment.reasons.map { it.label() }
+        val weather = conditions.weather
+        val beach = site.placeType == PlaceType.BEACH
+        val nightHigh = assessment.reasons.filterIsInstance<ArrivalReason.NightHighTide>().firstOrNull()?.at
+        val high = nightHigh ?: conditions.highTides?.firstOrNull()
+        val low = conditions.lowTides?.firstOrNull()
+        val usage = usageText(site)
         val facts = buildMap<String, Any> {
-            put("장소", site.name)
+            put("장소", site.name.removeSuffix(DEMO_SUFFIX))
             put("장소유형", site.placeType.label())
             put("안내등급", assessment.grade.title())
             put("등급안내", assessment.grade.guide())
             if (reasons.isNotEmpty()) put("판단근거", reasons)
-            conditions.weather?.let {
-                put("야간최저기온C", it.minTempC.formatTemp())
-                put("강수", it.precipitation.label())
+            if (weather != null) {
+                put("야간최저기온C", weather.minTempC.formatTemp())
+                weather.maxWindMs?.let { put("최대풍속ms", it.formatTemp()) }
+                put("강한바람", weather.strongWind)
+                put("강수", weather.precipitation.label())
+            } else {
+                put("날씨", "조회 실패")
             }
-            conditions.highTides?.takeIf { it.isNotEmpty() }?.let { tides -> put("만조", tides.map { it.format(hhmm) }) }
+            if (beach) {
+                when {
+                    conditions.highTides == null -> put("물때", "조회 실패")
+                    high == null -> put("물때", "밤사이 만조 없음")
+                    else -> {
+                        put("만조", high.format(hhmm))
+                        put("자는동안만조", nightHigh != null)
+                        low?.let { put("간조", it.format(hhmm)) }
+                    }
+                }
+            } else {
+                conditions.sunrise?.let { put("일출", it.format(hhmm)) }
+            }
+            put("이용정보", usage)
+            if (site.facilities.isNotEmpty()) put("시설", site.facilities)
         }
-        val reasonText = reasons.joinToString(" ") { "$it." }
-        val template = "도착 안내는 ${assessment.grade.title()}입니다. ${if (reasonText.isNotEmpty()) "$reasonText " else ""}${assessment.grade.guide()}"
+
+        val weatherText = when {
+            weather == null -> "날씨는 불러오지 못했어요."
+            weather.strongWind -> "날씨는 최저 ${weather.minTempC.formatTemp()}도이고, " +
+                (weather.maxWindMs?.let { "바람이 초속 ${it.formatTemp()}미터로 강해요." } ?: "강한 바람 예보가 있어요.")
+            weather.precipitation == Precipitation.HEAVY_RAIN -> "날씨는 최저 ${weather.minTempC.formatTemp()}도이고, 강한 비 예보가 있어요."
+            weather.precipitation == Precipitation.RAIN -> "날씨는 최저 ${weather.minTempC.formatTemp()}도이고, 비 예보가 있어요."
+            else -> "날씨는 최저 ${weather.minTempC.formatTemp()}도이고, 비 소식은 없어요."
+        }
+        val secondText = when {
+            !beach -> conditions.sunrise?.let { "내일 일출은 ${it.format(hhmm)}이에요." }
+            conditions.highTides == null -> "물때는 불러오지 못했어요."
+            high == null -> "밤사이 만조는 없어요."
+            nightHigh != null -> "물때는 ${high.format(hhmm)} 만조로, 자는 동안 물이 가장 높아져요."
+            else -> "물때는 만조가 ${high.format(hhmm)}" + (low?.let { ", 간조가 ${it.format(hhmm)}이에요." } ?: "이에요.")
+        }
+        val template = listOfNotNull(
+            "${site.name.removeSuffix(DEMO_SUFFIX)}의 오늘 밤 안내예요.",
+            weatherText,
+            secondText,
+            "이용 정보는 $usage.",
+            assessment.grade.guide(),
+        ).joinToString(" ")
         return NarrationRequest(NarrationMoment.ARRIVAL, facts, template)
     }
+
+    /** 이용 정보 카드와 같은 내용을 한 구절로 (문장 끝 마침표 없이) */
+    private fun usageText(site: Site): String {
+        val camp = site.id.startsWith("camp-")
+        return when (site.permission) {
+            CampingPermission.ALLOWED -> (if (camp) "등록된 자동차야영장이지만" else "등록된 차박 장소지만") + " 오늘 밤 이용 여부는 현장에서 확인해 주세요"
+            CampingPermission.UNKNOWN -> if (camp) "자동차야영장이 아니라 차박 가능 여부를 현장에서 확인해 주세요" else "차박 허용 여부를 안내판에서 확인해 주세요"
+            CampingPermission.PROHIBITED -> "차박 금지 장소라 다른 곳으로 이동해 주세요"
+        }
+    }
+
+    private const val DEMO_SUFFIX = " (시연)"
 
     fun bedtime(settings: BedtimeSettings, sunrise: LocalTime?, batteryPercent: Int?, forecast: MorningForecast? = null): NarrationRequest {
         val wake = settings.wakeAt.format(hhmm)

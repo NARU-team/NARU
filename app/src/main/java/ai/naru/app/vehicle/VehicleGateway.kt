@@ -31,6 +31,11 @@ interface VehicleGateway {
     /** 공조 설정 온도를 바꾼다. 성공은 "요청이 전달됨"이지 실제 반영이 아니므로 다시 조회해서 확인한다. */
     suspend fun setTargetTemperature(celsius: Float): VehicleResult<Unit>
 
+    /** 공조 전원 (AAOS HVAC_POWER_ON). 꺼져 있으면 설정 온도를 조회·변경할 수 없다 */
+    suspend fun getHvacPower(): VehicleResult<Boolean>
+
+    suspend fun setHvacPower(on: Boolean): VehicleResult<Unit>
+
     /** 앰비언트 조명 상태. */
     suspend fun getAmbientLight(): VehicleResult<AmbientLight>
 

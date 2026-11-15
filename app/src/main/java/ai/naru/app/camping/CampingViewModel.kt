@@ -8,6 +8,7 @@ import ai.naru.app.camping.arrival.SiteConditions
 import ai.naru.app.camping.arrival.PlaceType
 import ai.naru.app.camping.arrival.SiteRepository
 import ai.naru.app.camping.bedtime.BedtimeRules
+import ai.naru.app.camping.bedtime.BedtimeTexts
 import ai.naru.app.camping.bedtime.BedtimeSettings
 import ai.naru.app.camping.bedtime.NightPreparer
 import ai.naru.app.camping.bedtime.ControlResult
@@ -535,7 +536,18 @@ class CampingViewModel(
             _state.update {
                 it.copy(bedtime = withForecast(it, BedtimeState(settings, recommendation, arrival.conditions.sunrise, range, feedbackHint = hint, lightSupported = lightSupported)))
             }
+            speakSuggestion()
         }
+    }
+
+    /** 취침 준비 2/3의 나루 제안(규칙으로 만든 추천 문장)을 읽어 준다. 도착 멘트는 멈춘다 */
+    private fun speakSuggestion() {
+        val state = _state.value
+        val bedtime = state.bedtime ?: return
+        if (state.stage != CampingStage.BEDTIME_PREP) return
+        stopNarration()
+        val text = BedtimeTexts.suggestion(state.arrival?.conditions?.weather?.minTempC, bedtime.recommendation, bedtime.forecast, bedtime.feedbackHint)
+        if (state.voiceOn) voice.speak(text)
     }
 
     // --- 취침 준비 단계 ---
@@ -544,6 +556,27 @@ class CampingViewModel(
         val next = BedtimeRules.adjustTemperature(bedtime.settings.targetTempC, steps, bedtime.vehicleTempRange)
         bedtime.copy(settings = bedtime.settings.copy(targetTempC = next))
     }
+
+    /**
+     * 차박 중 [◀][▶]: 설정 온도를 한 칸 바꾸고 바로 차량에 적용한다.
+     * 사용자가 직접 누른 값만 적용한다 (자동 조정 아님). 지원 확인 → 적용 → 다시 조회, 실패해도 다시 시도하지 않는다.
+     */
+    fun adjustNightTemperature(steps: Int) {
+        if (_state.value.stage != CampingStage.NIGHT || _state.value.restoring) return
+        val bedtime = _state.value.bedtime ?: return
+        val next = BedtimeRules.adjustTemperature(bedtime.settings.targetTempC, steps, bedtime.vehicleTempRange)
+        if (next == bedtime.settings.targetTempC) return
+        updateBedtime { it.copy(settings = it.settings.copy(targetTempC = next)) }
+        nightTempJob?.cancel()
+        nightTempJob = viewModelScope.launch {
+            val result = nightPreparer.applyTemperature(next)
+            if (_state.value.stage != CampingStage.NIGHT) return@launch
+            _state.update { it.copy(temperatureApply = result) }
+            noteControl(ControlKind.TEMPERATURE, result)
+        }
+    }
+
+    private var nightTempJob: Job? = null
 
     fun adjustWakeTime(minutes: Long) = updateBedtime { bedtime ->
         val next = bedtime.settings.wakeAt.plusMinutes(minutes)

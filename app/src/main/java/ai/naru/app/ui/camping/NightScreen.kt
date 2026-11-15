@@ -1,5 +1,6 @@
 package ai.naru.app.ui.camping
 
+import ai.naru.app.ui.components.naruShadow
 import ai.naru.app.camping.AssistantState
 import ai.naru.app.camping.CampingUiState
 import ai.naru.app.camping.ControlKind
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,6 +75,8 @@ data class NightScreenActions(
     val onTurnThemeOff: () -> Unit = {},
     val onTurnThemeOn: () -> Unit = {},
     val onToggleLight: () -> Unit = {},
+    /** 설정 온도 한 칸(0.5°C) 내리기/올리기: 누르면 바로 차량에 적용 (사용자가 직접 누른 값만) */
+    val onAdjustTemperature: (Int) -> Unit = {},
 )
 
 private val hhmm: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -97,10 +101,18 @@ fun NightScreen(state: CampingUiState, voiceInputAvailable: Boolean, actions: Ni
                 Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(NaruSpacing.gap)) {
                     SideCard(
                         icon = NaruIcons.Thermometer,
-                        label = "실내",
+                        label = state.cabinTempC?.let { "실내 지금 ${it.formatTemp()}°C" } ?: "실내",
                         value = settings?.let { "${it.targetTempC.formatTemp()}°C 유지 중" } ?: "-",
                         note = state.temperatureApply?.problem("설정 온도"),
                         modifier = Modifier.weight(1f),
+                        trailing = if (settings != null && state.temperatureApply != ControlResult.NotSupported) {
+                            {
+                                TempStepButton(NaruIcons.ChevronLeft, "온도 내리기", enabled = !state.restoring) { actions.onAdjustTemperature(-1) }
+                                TempStepButton(NaruIcons.ChevronRight, "온도 올리기", enabled = !state.restoring) { actions.onAdjustTemperature(1) }
+                            }
+                        } else {
+                            null
+                        },
                     )
                     ThemeSideCard(state, actions, Modifier.weight(1f))
                     SideCard(
@@ -197,7 +209,7 @@ private fun NightCard(wakeAt: LocalDateTime?, sunrise: String?, theme: PlaceType
     }
     // 테마를 끄면 나루 화면을 어둡게 (밤하늘·달·물결 없이 시각만)
     val background = if (themeOn) Modifier.background(colors.nightBrush) else Modifier.background(Color(0xFF151618))
-    Box(modifier = modifier.clip(NaruShapes.card).then(background)) {
+    Box(modifier = modifier.naruShadow(NaruShapes.card).clip(NaruShapes.card).then(background)) {
         if (themeOn) Canvas(modifier = Modifier.fillMaxSize()) {
             for ((fx, fy) in listOf(0.55f to 0.15f, 0.62f to 0.4f, 0.48f to 0.5f, 0.75f to 0.38f, 0.38f to 0.62f)) {
                 drawCircle(Color.White.copy(alpha = 0.8f), radius = 2f, center = Offset(size.width * fx, size.height * fy))
@@ -252,18 +264,40 @@ private fun NightCard(wakeAt: LocalDateTime?, sunrise: String?, theme: PlaceType
 }
 
 @Composable
-private fun SideCard(icon: ImageVector, label: String, value: String, note: String?, modifier: Modifier, warning: Boolean = false) {
+private fun SideCard(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    note: String?,
+    modifier: Modifier,
+    warning: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
+) {
     val colors = NaruTheme.colors
     val tone = if (warning) CardTone.WARNING else CardTone.DEFAULT
     NaruCard(modifier = modifier.fillMaxWidth(), tone = tone) {
         Row(modifier = Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             NaruIconCircle(icon, tone = tone)
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.textTertiary)
                 Text(text = value, style = MaterialTheme.typography.titleMedium, color = colors.text)
                 note?.let { Text(text = it, style = MaterialTheme.typography.labelMedium, color = colors.warningIcon) }
             }
+            trailing?.invoke()
         }
+    }
+}
+
+/** 설정 온도 한 칸 버튼 (연회색 원) */
+@Composable
+private fun TempStepButton(icon: ImageVector, description: String, enabled: Boolean, onClick: () -> Unit) {
+    val colors = NaruTheme.colors
+    Box(
+        modifier = Modifier.size(40.dp).clip(NaruShapes.pill).background(colors.secondaryButton)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = description, tint = if (enabled) colors.text else colors.textTertiary, modifier = Modifier.size(22.dp))
     }
 }
 
@@ -340,7 +374,7 @@ private fun AssistantStrip(assistant: AssistantState, actions: AssistantActions)
         else -> null
     } ?: return
     Row(
-        modifier = Modifier.fillMaxWidth().clip(NaruShapes.card).background(colors.accentSurface).padding(horizontal = NaruSpacing.card, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().naruShadow(NaruShapes.card).clip(NaruShapes.card).background(colors.accentSurface).padding(horizontal = NaruSpacing.card, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

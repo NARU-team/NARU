@@ -155,6 +155,29 @@ class PleosVehicleGateway(context: Context) : VehicleGateway {
         hvac.setHvacTemperature(DRIVER_AREA, celsius, TemperatureUnit.CELSIUS, { _, _ -> ok(Unit) }, fail)
     }
 
+    /** 공조 전원: HVAC.getHvacPowerState / setHvacPower (sdk-src Vehicle-2.3.2 HVAC.kt). 영역은 capability가 알려 준 첫 영역 */
+    override suspend fun getHvacPower(): VehicleResult<Boolean> {
+        val area = requireHvacPowerArea() ?: return VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
+        return awaitCallback<Boolean?> { ok, fail -> hvac.getHvacPowerState(area, ok, fail) }.requireValue()
+    }
+
+    override suspend fun setHvacPower(on: Boolean): VehicleResult<Unit> {
+        val area = requireHvacPowerArea() ?: return VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
+        return awaitCallback { ok, fail -> hvac.setHvacPower(area, on, { _, _ -> ok(Unit) }, fail) }
+    }
+
+    private var hvacPowerArea: SeatArea? = null
+
+    private suspend fun requireHvacPowerArea(): SeatArea? {
+        hvacPowerArea?.let { return it }
+        return awaitCallback<SeatArea?> { ok, fail ->
+            hvac.checkHvacPowerCapabilities(
+                onComplete = { config, areas -> ok(areas.firstOrNull()?.takeIf { config.accessType.writable() }) },
+                onFailed = fail,
+            )
+        }.valueOrNull()?.also { hvacPowerArea = it }
+    }
+
     override suspend fun getAmbientLight(): VehicleResult<AmbientLight> {
         val area = requireAmbientArea() ?: return VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
         val switch = awaitCallback<LightSwitch?> { ok, fail -> light.getAmbientLightSwitch(area, ok, fail) }

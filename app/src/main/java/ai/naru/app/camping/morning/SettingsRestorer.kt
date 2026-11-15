@@ -12,10 +12,12 @@ import ai.naru.app.vehicle.VehicleResult
 data class RestoreReport(
     val temperature: ControlResult?,
     val ambient: ControlResult?,
+    /** 차박 전에 꺼져 있던 공조를 다시 끈 결과. 원래 켜져 있었으면 null */
+    val hvacPower: ControlResult? = null,
 ) {
     /** 직접 확인이 필요한 항목이 있는지 (반영을 확인하지 못했거나 실패) */
     val needsManualCheck: Boolean
-        get() = listOfNotNull(temperature, ambient).any { it != ControlResult.Applied }
+        get() = listOfNotNull(temperature, ambient, hvacPower).any { it != ControlResult.Applied }
 }
 
 /**
@@ -58,7 +60,18 @@ class SettingsRestorer(private val vehicle: VehicleGateway) {
             }
         }
 
-        return RestoreReport(temperature, ambient)
+        // 온도를 되돌린 뒤에 공조를 끈다 (꺼진 상태에서는 온도를 바꿀 수 없음)
+        val hvacPower = if (backup.hvacPowerOn == false) {
+            when (val result = vehicle.setHvacPower(false)) {
+                is VehicleResult.Failure -> ControlResult.Failed(result.reason)
+                is VehicleResult.Success ->
+                    if ((vehicle.getHvacPower() as? VehicleResult.Success)?.value == false) ControlResult.Applied else ControlResult.Unverified
+            }
+        } else {
+            null
+        }
+
+        return RestoreReport(temperature, ambient, hvacPower)
     }
 
     /** 켜짐 여부와 밝기를 비교한다. 꺼진 조명도 밝기를 되돌리므로 함께 본다. */

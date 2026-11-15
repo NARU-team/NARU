@@ -17,6 +17,8 @@ class FakeVehicleGateway(
     /** null이면 바깥 온도를 주지 않는 차량 */
     private val outsideTemperature: Float? = 9.0f,
     private var ambientLight: AmbientLight = AmbientLight(on = false, brightness = 100, colorRgb = 0xFFFFFF),
+    /** 공조 전원. 꺼져 있으면 설정 온도 조회·변경이 실패한다 (에뮬레이터와 같은 동작) */
+    private var hvacPower: Boolean = true,
     private val capabilities: VehicleCapabilities = VehicleCapabilities(
         targetTemperatureRange = 15.0f..30.0f,
         ambientBrightnessRange = 0..100,
@@ -44,7 +46,18 @@ class FakeVehicleGateway(
     override suspend fun capabilities(): VehicleCapabilities = capabilities
 
     override suspend fun getTargetTemperature(): VehicleResult<Float> =
-        VehicleResult.Success(targetTemperature)
+        if (hvacPower) VehicleResult.Success(targetTemperature) else VehicleResult.Failure(FailureReason.UNKNOWN, "공조 꺼짐")
+
+    override suspend fun getHvacPower(): VehicleResult<Boolean> = VehicleResult.Success(hvacPower)
+
+    override suspend fun setHvacPower(on: Boolean): VehicleResult<Unit> {
+        consumeFailure()?.let { return it }
+        hvacPower = on
+        return VehicleResult.Success(Unit)
+    }
+
+    /** 테스트용: 지금 공조 전원 */
+    val hvacPowerOn: Boolean get() = hvacPower
 
     override suspend fun getCabinTemperature(): VehicleResult<Float> =
         VehicleResult.Success(cabinTemperature)
@@ -59,6 +72,7 @@ class FakeVehicleGateway(
         if (celsius !in range) {
             return VehicleResult.Failure(FailureReason.NOT_SUPPORTED, "범위 밖 온도: $celsius")
         }
+        if (!hvacPower) return VehicleResult.Failure(FailureReason.UNKNOWN, "공조 꺼짐")
         targetTemperature = celsius
         return VehicleResult.Success(Unit)
     }

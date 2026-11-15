@@ -2,6 +2,7 @@ package ai.naru.app.ui.home
 
 import ai.naru.app.camping.EndReason
 import ai.naru.app.camping.arrival.PlaceType
+import ai.naru.app.camping.bedtime.TempFeedback
 import ai.naru.app.camping.morning.RestoreReport
 import ai.naru.app.camping.record.SessionRecord
 import ai.naru.app.ui.camping.RestoreSummary
@@ -112,7 +113,7 @@ fun HomeScreen(
                     label = "차박 모드",
                     title = "오늘 여기서 자기",
                     description = "장소 확인부터 일출 기상까지 하룻밤",
-                    chip = state.lastRecord?.let { "지난번 ${it.siteName.removeSuffix(" (시연)")}, ${it.targetTempC.formatTemp()}°C" },
+                    chip = lastCampingText(state.lastRecord),
                     chipIcon = NaruIcons.Clock,
                     startEnabled = true,
                     onStart = onStartCamping,
@@ -211,6 +212,18 @@ private fun NightIllustration() {
         )
         Icon(NaruIcons.Tent, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
     }
+}
+
+/** 차박 카드 칩: 지난 차박의 장소·온도·온도 평가 (피그마 쉼표 카드 "지난번 30분, 23°C"와 같은 형식). 기록이 없으면 첫 차박 안내 */
+internal fun lastCampingText(record: SessionRecord?): String {
+    if (record == null) return "아직 차박 기록이 없어요"
+    val feeling = when (record.feedback) {
+        TempFeedback.COLD -> " 추웠음"
+        TempFeedback.GOOD -> " 좋았음"
+        TempFeedback.HOT -> " 더웠음"
+        null -> ""
+    }
+    return "지난번 ${record.siteName.removeSuffix(" (시연)")}, ${record.targetTempC.formatTemp()}°C$feeling"
 }
 
 private fun Float.formatTemp(): String = if (this % 1f == 0f) toInt().toString() else "%.1f".format(this)

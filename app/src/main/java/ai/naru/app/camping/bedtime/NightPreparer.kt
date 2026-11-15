@@ -27,6 +27,8 @@ data class BedtimeSettings(
 data class VehicleBackup(
     val targetTempC: Float?,
     val ambient: AmbientLight?,
+    /** 차박 전 공조 전원. 꺼져 있었으면 설정 온도를 적용하려고 켜고, 복구할 때 다시 끈다 */
+    val hvacPowerOn: Boolean? = null,
 )
 
 /** 차량 제어 결과 (설정 온도, 조명 등 공통). */
@@ -59,10 +61,17 @@ class NightPreparer(private val vehicle: VehicleGateway) {
 
     suspend fun prepare(settings: BedtimeSettings): NightPreparation {
         val capabilities = vehicle.capabilities()
+        val tempSupported = capabilities.targetTemperatureRange != null
+
+        // 공조가 꺼져 있으면 설정 온도를 읽을 수도 바꿀 수도 없다 (에뮬레이터 확인: HVAC_TEMPERATURE_SET not available).
+        // 원래 전원 상태를 백업하고 먼저 켠 뒤 원래 설정 온도를 읽는다
+        val powerBefore = if (tempSupported) vehicle.getHvacPower().valueOrNull() else null
+        if (powerBefore == false) vehicle.setHvacPower(true)
 
         val backup = VehicleBackup(
             targetTempC = vehicle.getTargetTemperature().valueOrNull(),
             ambient = if (capabilities.ambientBrightnessRange != null) vehicle.getAmbientLight().valueOrNull() else null,
+            hvacPowerOn = powerBefore,
         )
 
         return NightPreparation(backup, applyTemperature(settings.targetTempC, capabilities.targetTemperatureRange != null))
@@ -74,6 +83,10 @@ class NightPreparer(private val vehicle: VehicleGateway) {
     suspend fun applyTemperature(celsius: Float, supported: Boolean? = null): ControlResult {
         val canControl = supported ?: (vehicle.capabilities().targetTemperatureRange != null)
         if (!canControl) return ControlResult.NotSupported
+        // 밤사이 사용자가 공조를 껐으면 온도를 바꾸기 전에 다시 켠다 (사용자가 온도를 바꾼 경우에만 호출됨)
+        if (vehicle.getHvacPower().valueOrNull() == false) {
+            (vehicle.setHvacPower(true) as? VehicleResult.Failure)?.let { return ControlResult.Failed(it.reason) }
+        }
         return when (val result = vehicle.setTargetTemperature(celsius)) {
             is VehicleResult.Failure -> ControlResult.Failed(result.reason)
             is VehicleResult.Success -> {

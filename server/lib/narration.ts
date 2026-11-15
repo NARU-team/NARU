@@ -21,14 +21,17 @@ export const DEFAULT_MODEL = "gpt-5.4-mini";
  * 출력 제한 (제안값, 이슈 #23·#25).
  * - 아침: 경고·날씨·배터리·실내 온도까지 사실이 4개 (실측: 3문장 제한에 걸려 템플릿으로 대체됨)
  * - 잠들기 전: 설정·예상 잔량·배터리 주의·인사까지 5문장 (실측: 주의를 넣으면 5문장). 주의를 빼는 것보다 길어지는 게 낫다
+ * - 도착: 장소·날씨·물때(일출)·이용 정보·등급 안내 5문장
  */
 export const NARRATION_LIMITS = {
-  maxChars: 180,
-  maxSentences: { ARRIVAL: 3, BEDTIME: 5, MORNING: 4 } satisfies Record<Moment, number>,
+  // 도착: 날씨·물때(일출)·이용 정보·등급 안내까지 세 카드를 모두 설명한다 (사용자 피드백 2026-11-15)
+  maxChars: { ARRIVAL: 220, BEDTIME: 180, MORNING: 180 } satisfies Record<Moment, number>,
+  maxSentences: { ARRIVAL: 5, BEDTIME: 5, MORNING: 4 } satisfies Record<Moment, number>,
 };
 
 const MOMENT_GUIDE: Record<Moment, string> = {
-  ARRIVAL: "차박 장소에 막 도착한 순간이다. 안내 등급과 그 이유를 먼저 짧게 전한다. 등급이 '주의·이동 권장'이면 이동을 권하는 말투를 유지한다.",
+  ARRIVAL:
+    "차박 장소에 막 도착한 순간이다. 화면의 세 카드 순서대로 오늘 밤 날씨(최저기온, 바람, 비), 물때(해변이면 만조·간조, 아니면 일출), 이용 정보(허용 여부와 시설)를 차례로 짧게 설명하고, 마지막에 등급안내를 전한다. 조회 실패는 실패했다고 말한다. 등급이 '주의·이동 권장'이면 이동을 권하는 말투를 유지한다.",
   BEDTIME:
     "잠들기 직전이다. 오늘 밤 설정(온도, 기상 시각, 테마)을 차분하게 확인해 준다. 아침 예상 잔량이 있으면 함께 알려 주고, '주의'가 있으면 빼지 말고 꼭 전한다. 편히 쉬라는 인사로 끝낸다.",
   MORNING: "막 일어난 아침이다. 경고가 있으면 가장 먼저 전하고, 그다음 바깥 날씨와 차량 상태를 밝게 알려 준다.",
@@ -38,7 +41,7 @@ export function instructions(moment: Moment): string {
   return [
     "너는 차박하는 운전자를 돕는 차량 음성 안내 '나루'다.",
     MOMENT_GUIDE[moment],
-    `규칙: 한국어 존댓말, ${NARRATION_LIMITS.maxSentences[moment]}문장 이하, ${NARRATION_LIMITS.maxChars}자 이하.`,
+    `규칙: 한국어 존댓말, ${NARRATION_LIMITS.maxSentences[moment]}문장 이하, ${NARRATION_LIMITS.maxChars[moment]}자 이하.`,
     "주어진 사실만 말한다. 사실에 없는 숫자·시각·장소를 만들지 않는다. 등급이나 경고를 약하게 바꾸지 않는다.",
     "소리 내어 읽을 문장이므로 이모지, 마크다운, 괄호, 목록을 쓰지 않는다. 문장만 출력한다.",
   ].join("\n");
@@ -62,7 +65,7 @@ export function validateRequest(body: unknown): string | null {
  */
 export function validateOutput(text: string, facts: Facts, moment: Moment = "ARRIVAL"): string | null {
   const t = text.replace(/\s+/g, " ").trim();
-  if (!t || t.length > NARRATION_LIMITS.maxChars) return null;
+  if (!t || t.length > NARRATION_LIMITS.maxChars[moment]) return null;
   if (/[*#`_\[\]()]|\p{Extended_Pictographic}/u.test(t)) return null;
   // 문장 끝 = 마침표·물음표·느낌표 뒤에 공백이 오거나 글이 끝남 ("19.1°C" 같은 소수점은 문장 끝이 아님)
   const sentences = t.split(/(?<=[.!?。])\s+/).filter((s) => s.trim());

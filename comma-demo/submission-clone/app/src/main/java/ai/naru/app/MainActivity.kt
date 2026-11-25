@@ -1,0 +1,314 @@
+package ai.naru.app
+
+import ai.naru.app.camping.CampingViewModel
+import ai.naru.app.ui.camping.BedtimeActions
+import ai.naru.app.ui.camping.CampingActions
+import ai.naru.app.ui.camping.CampingScreen
+import ai.naru.app.ui.camping.ArrivalActions
+import ai.naru.app.ui.camping.ArrivalScreen
+import ai.naru.app.camping.BedtimeStep
+import ai.naru.app.ui.camping.AssistantActions
+import ai.naru.app.ui.camping.BedtimeScreen
+import ai.naru.app.ui.camping.BedtimeScreenActions
+import ai.naru.app.ui.camping.MorningScreen
+import ai.naru.app.ui.camping.MorningScreenActions
+import ai.naru.app.ui.camping.NightScreen
+import ai.naru.app.ui.camping.NightScreenActions
+import ai.naru.app.ui.camping.ThemeScreen
+import ai.naru.app.ui.camping.ThemeScreenActions
+import ai.naru.app.ui.camping.MorningActions
+import ai.naru.app.ui.debug.VehicleDebugPanel
+import ai.naru.app.camping.CampingStage
+import ai.naru.app.location.LocationGateway
+import ai.naru.app.ui.home.OnboardingScreen
+import ai.naru.app.ui.camping.ParkRequiredScreen
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.remember
+import ai.naru.app.ui.home.HomeScreen
+import ai.naru.app.ui.home.HomeState
+import ai.naru.app.ui.theme.NaruTheme
+import ai.naru.app.vehicle.FakeVehicleGateway
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val app = application as NaruApplication
+        setContent {
+            NaruTheme {
+                NaruApp(app)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NaruApp(app: NaruApplication) {
+    val campingViewModel: CampingViewModel = viewModel(
+        factory = viewModelFactory { initializer { CampingViewModel(
+                app.vehicleGateway,
+                app.siteRepository,
+                app.nightSound,
+                app.morningAlarm,
+                app.narrationRepository,
+                app.voiceGuide,
+                app.recordStore,
+                app.intentRepository,
+                app.speechInput,
+                app.locationGateway,
+            ) } },
+    )
+
+    // 처음 시작하기(권한 동의)와 위치 권한 요청 (이슈 #44)
+    var onboardingDone by remember { mutableStateOf(app.onboardingDone) }
+    var locationGranted by remember { mutableStateOf(app.locationGateway.hasPermission()) }
+    var locateAfterGrant by remember { mutableStateOf(false) }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        locationGranted = granted
+        app.onboardingDone = true
+        onboardingDone = true
+        if (granted && locateAfterGrant) campingViewModel.locate()
+        locateAfterGrant = false
+    }
+    val requestLocation = { locateAfter: Boolean ->
+        if (app.locationGateway.hasPermission()) {
+            if (locateAfter) campingViewModel.locate()
+        } else {
+            locateAfterGrant = locateAfter
+            permissionLauncher.launch(LocationGateway.PERMISSION)
+        }
+    }
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+      // 차량 시스템이 앱 창을 하단 바 뒤까지 늘리는 경우가 있다 (에뮬레이터 확인 2026-11-15: 창 아래가 하단 바에 가려 버튼이 잘림).
+      // 시스템 바·화면 잘림 영역만큼 안쪽으로 그린다. 겹치지 않으면 여백은 0이다
+      Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 세션이 없으면(대기) 홈, 있으면 차박 화면 (홈의 [시작]이 바로 차박을 시작한다, 이슈 #33)
+            val state by campingViewModel.state.collectAsStateWithLifecycle()
+            when {
+                !onboardingDone -> OnboardingScreen(
+                    locationGranted = locationGranted,
+                    onLater = {
+                        app.onboardingDone = true
+                        onboardingDone = true
+                    },
+                    onContinue = {
+                        if (locationGranted) {
+                            app.onboardingDone = true
+                            onboardingDone = true
+                        } else {
+                            requestLocation(false)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                state.waitingForPark -> ParkRequiredScreen(
+                    gear = state.gear,
+                    onBack = campingViewModel::cancelWaitingForPark,
+                    modifier = Modifier.weight(1f),
+                )
+                // 밤·아침에 주행을 시작해 차박을 끝냄 (피그마 v2 예외 "주행 시작 시 자동 종료")
+                state.drivingEnded && state.stage == CampingStage.IDLE -> ParkRequiredScreen(
+                    gear = state.gear,
+                    onBack = campingViewModel::cancelWaitingForPark,
+                    endedNotice = if (state.restore?.needsManualCheck == true) "차박을 끝냈어요. 일부 설정은 직접 확인해 주세요" else "차박을 끝내고 설정을 되돌렸어요",
+                    modifier = Modifier.weight(1f),
+                )
+                else -> when (state.stage) {
+                CampingStage.IDLE -> HomeScreen(
+                    state = HomeState(
+                        batteryPercent = state.batteryPercent,
+                        cabinTempC = state.cabinTempC,
+                        outsideTempC = state.outsideTempC,
+                        lastRecord = state.records.maxByOrNull { it.nightStartedAt },
+                        message = state.message,
+                        lastEndReason = state.lastEndReason,
+                        restore = state.restore,
+                    ),
+                    onStartCamping = campingViewModel::start,
+                    onDismissMessage = campingViewModel::dismissMessage,
+                    onShown = campingViewModel::refreshHomeStatus,
+                    modifier = Modifier.weight(1f),
+                )
+
+                // 피그마 v2 도착 안내 (이슈 #35)
+                CampingStage.ARRIVAL_CHECK -> ArrivalScreen(
+                    sites = state.sites,
+                    sitesUnavailable = state.sitesUnavailable,
+                    loadingSite = state.loadingSite,
+                    arrival = state.arrival,
+                    narration = state.narration,
+                    locating = state.locating,
+                    askPlaceType = state.hereConditions != null,
+                    nearbyPlaces = state.nearbyPlaces,
+                    loadingPlace = state.loadingPlace,
+                    actions = ArrivalActions(
+                        onLocate = { requestLocation(true) },
+                        onChoosePlaceType = campingViewModel::choosePlaceType,
+                        onChoosePlace = campingViewModel::choosePlace,
+                        onBack = campingViewModel::back,
+                        onSelectSite = campingViewModel::selectSite,
+                        onRetrySites = campingViewModel::loadSites,
+                        onChangeSite = campingViewModel::changeSite,
+                        onRetry = campingViewModel::retryConditions,
+                        onConfirm = campingViewModel::confirmArrival,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+
+                // 피그마 v2 취침 준비 2/3 → 밤 분위기 3/3 (이슈 #37)
+                CampingStage.BEDTIME_PREP -> if (state.bedtimeStep == BedtimeStep.SETTINGS) {
+                    BedtimeScreen(
+                        bedtime = state.bedtime,
+                        minTempC = state.arrival?.conditions?.weather?.minTempC,
+                        batteryPercent = state.batteryPercent,
+                        cabinTempC = state.cabinTempC,
+                        assistant = state.assistant,
+                        voiceInputAvailable = true,
+                        voiceOn = state.voiceOn,
+                        actions = BedtimeScreenActions(
+                            onBack = campingViewModel::back,
+                            onClose = campingViewModel::cancel,
+                            onSetTemperature = campingViewModel::setTemperature,
+                            onSetSunriseWake = campingViewModel::setSunriseWake,
+                            onSetWakeTime = campingViewModel::setWakeTime,
+                            onNext = campingViewModel::goToThemeStep,
+                            onToggleVoice = campingViewModel::toggleVoice,
+                            assistant = AssistantActions(
+                                onAsk = campingViewModel::ask,
+                                onToggleListening = campingViewModel::toggleListening,
+                                onApprove = campingViewModel::approveChanges,
+                                onReject = campingViewModel::rejectChanges,
+                            ),
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    ThemeScreen(
+                        bedtime = state.bedtime,
+                        recommended = state.arrival?.site?.placeType,
+                        actions = ThemeScreenActions(
+                            onBack = campingViewModel::back,
+                            onClose = campingViewModel::cancel,
+                            onSelectTheme = campingViewModel::selectTheme,
+                            onStartNight = campingViewModel::startNight,
+                            onMoveThemeMinutes = campingViewModel::moveThemeMinutes,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                // 피그마 v2 차박 중 (이슈 #39)
+                CampingStage.NIGHT -> NightScreen(
+                    state = state,
+                    voiceInputAvailable = true,
+                    actions = NightScreenActions(
+                        onToggleSound = campingViewModel::toggleSound,
+                        onEndNow = campingViewModel::endNow,
+                        onToggleVoice = campingViewModel::toggleVoice,
+                        onDismissBatteryWarning = campingViewModel::dismissBatteryWarning,
+                        onEndForBattery = campingViewModel::endForBattery,
+                        onRetryControls = campingViewModel::retryControls,
+                        onDismissControlAlert = campingViewModel::dismissControlAlert,
+                        onTurnThemeOff = campingViewModel::turnThemeOff,
+                        onTurnThemeOn = campingViewModel::turnThemeOn,
+                        onToggleLight = campingViewModel::toggleLight,
+                        onAdjustTemperature = campingViewModel::adjustNightTemperature,
+                        assistant = AssistantActions(
+                            onAsk = campingViewModel::ask,
+                            onToggleListening = campingViewModel::toggleListening,
+                            onApprove = campingViewModel::approveChanges,
+                            onReject = campingViewModel::rejectChanges,
+                        ),
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+
+                // 피그마 v2 기상 → 아침 브리핑 (이슈 #41)
+                CampingStage.MORNING -> MorningScreen(
+                    state = state,
+                    actions = MorningScreenActions(
+                        onWakeUp = campingViewModel::wakeUp,
+                        onFeedback = campingViewModel::setFeedback,
+                        onFinish = campingViewModel::finishSession,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+
+                else -> {
+                    CampingScreen(
+                        state = state,
+                        actions = CampingActions(
+                            onStart = campingViewModel::start,
+                            onSelectSite = campingViewModel::selectSite,
+                            onRetrySites = campingViewModel::loadSites,
+                            onConfirmArrival = campingViewModel::confirmArrival,
+                            bedtime = BedtimeActions(
+                                onAdjustTemperature = campingViewModel::adjustTemperature,
+                                onAdjustWakeTime = campingViewModel::adjustWakeTime,
+                                onWakeAtSunrise = campingViewModel::wakeAtSunrise,
+                                onSelectTheme = campingViewModel::selectTheme,
+                                onStartNight = campingViewModel::startNight,
+                            ),
+                            onToggleSound = campingViewModel::toggleSound,
+                            onToggleVoice = campingViewModel::toggleVoice,
+                            assistant = AssistantActions(
+                                onAsk = campingViewModel::ask,
+                                onToggleListening = campingViewModel::toggleListening,
+                                onApprove = campingViewModel::approveChanges,
+                                onReject = campingViewModel::rejectChanges,
+                            ),
+                            voiceInputAvailable = true,
+                            morning = MorningActions(
+                                onWakeUp = campingViewModel::wakeUp,
+                                onFinish = campingViewModel::finishSession,
+                            ),
+                            onDismissMessage = campingViewModel::dismissMessage,
+                            onBack = campingViewModel::cancel,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            }
+        }
+
+        // 개발용 패널은 화면 위에 띄운다 (자리를 차지하면 피그마 높이가 줄어 카드 아래가 잘렸음)
+        if (BuildConfig.DEBUG) {
+            VehicleDebugPanel(
+                fake = app.vehicleGateway as? FakeVehicleGateway,
+                onSimulateWakeTime = campingViewModel::simulateWakeTime,
+                onAddSampleRecords = campingViewModel::addSampleRecords,
+                onLoadDemoRecords = campingViewModel::loadDemoRecords,
+                onClearRecords = campingViewModel::clearRecords,
+                modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
+            )
+        }
+      }
+    }
+}

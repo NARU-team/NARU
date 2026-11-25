@@ -63,4 +63,13 @@ class ServerJsonTest {
         assertEquals(1.2, ok.single().distanceKm, 0.001)
         assertNull(ServerJson.parseNearby("""{"available":false,"places":[]}"""))
     }
+
+    @Test
+    fun `근처 야영장 응답 - licensed는 있으면 읽고 없으면 false (이슈 69 이전 서버)`() {
+        val place = """"id":"1","name":"추암오토캠핑장","kind":"자동차야영장","placeType":"BEACH","permission":"ALLOWED","facilities":[],"distanceKm":0.5,"lat":37.477,"lon":129.159"""
+        val licensed = ServerJson.parseNearby("""{"available":true,"places":[{$place,"licensed":true}]}""")!!
+        val old = ServerJson.parseNearby("""{"available":true,"places":[{$place}]}""")!!
+        assertEquals(true, licensed.single().licensed)
+        assertEquals(false, old.single().licensed)
+    }
 }

@@ -1,0 +1,99 @@
+package ai.naru.app.vehicle
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+
+/**
+ * 메모리 안의 값으로 동작하는 가짜 차량.
+ *
+ * 에뮬레이터 없이 화면과 세션 흐름을 개발하고 테스트할 때 쓴다.
+ * 기어와 배터리는 [setGear], [setBatteryPercent]로 바꿔서 상황을 재현한다.
+ */
+class FakeVehicleGateway(
+    initialGear: Gear = Gear.PARK,
+    initialBatteryPercent: Int? = 80,
+    private var targetTemperature: Float = 22.0f,
+    private var cabinTemperature: Float = 19.0f,
+    /** null이면 바깥 온도를 주지 않는 차량 */
+    private val outsideTemperature: Float? = 9.0f,
+    private var ambientLight: AmbientLight = AmbientLight(on = false, brightness = 100, colorRgb = 0xFFFFFF),
+    /** 공조 전원. 꺼져 있으면 설정 온도 조회·변경이 실패한다 (에뮬레이터와 같은 동작) */
+    private var hvacPower: Boolean = true,
+    private val capabilities: VehicleCapabilities = VehicleCapabilities(
+        targetTemperatureRange = 15.0f..30.0f,
+        ambientBrightnessRange = 0..100,
+        ambientColorSupported = true,
+    ),
+) : VehicleGateway {
+
+    private val gearState = MutableStateFlow(initialGear)
+    private val batteryState = MutableStateFlow(initialBatteryPercent)
+
+    override val gear: Flow<Gear> = gearState
+    override val batteryPercent: Flow<Int?> = batteryState
+
+    /** 다음 제어 호출을 실패시키고 싶을 때 지정한다. 한 번 쓰이면 비워진다. */
+    var nextFailure: FailureReason? = null
+
+    fun setGear(gear: Gear) {
+        gearState.value = gear
+    }
+
+    fun setBatteryPercent(percent: Int?) {
+        batteryState.value = percent
+    }
+
+    override suspend fun capabilities(): VehicleCapabilities = capabilities
+
+    override suspend fun getTargetTemperature(): VehicleResult<Float> =
+        if (hvacPower) VehicleResult.Success(targetTemperature) else VehicleResult.Failure(FailureReason.UNKNOWN, "공조 꺼짐")
+
+    override suspend fun getHvacPower(): VehicleResult<Boolean> = VehicleResult.Success(hvacPower)
+
+    override suspend fun setHvacPower(on: Boolean): VehicleResult<Unit> {
+        consumeFailure()?.let { return it }
+        hvacPower = on
+        return VehicleResult.Success(Unit)
+    }
+
+    /** 테스트용: 지금 공조 전원 */
+    val hvacPowerOn: Boolean get() = hvacPower
+
+    override suspend fun getCabinTemperature(): VehicleResult<Float> =
+        VehicleResult.Success(cabinTemperature)
+
+    override suspend fun getOutsideTemperature(): VehicleResult<Float> =
+        outsideTemperature?.let { VehicleResult.Success(it) } ?: VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
+
+    override suspend fun setTargetTemperature(celsius: Float): VehicleResult<Unit> {
+        consumeFailure()?.let { return it }
+        val range = capabilities.targetTemperatureRange
+            ?: return VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
+        if (celsius !in range) {
+            return VehicleResult.Failure(FailureReason.NOT_SUPPORTED, "범위 밖 온도: $celsius")
+        }
+        if (!hvacPower) return VehicleResult.Failure(FailureReason.UNKNOWN, "공조 꺼짐")
+        targetTemperature = celsius
+        return VehicleResult.Success(Unit)
+    }
+
+    override suspend fun getAmbientLight(): VehicleResult<AmbientLight> =
+        VehicleResult.Success(ambientLight)
+
+    override suspend fun setAmbientLight(light: AmbientLight): VehicleResult<Unit> {
+        consumeFailure()?.let { return it }
+        val range = capabilities.ambientBrightnessRange
+            ?: return VehicleResult.Failure(FailureReason.NOT_SUPPORTED)
+        if (light.brightness !in range) {
+            return VehicleResult.Failure(FailureReason.NOT_SUPPORTED, "범위 밖 밝기: ${light.brightness}")
+        }
+        ambientLight = light
+        return VehicleResult.Success(Unit)
+    }
+
+    private fun consumeFailure(): VehicleResult.Failure? {
+        val reason = nextFailure ?: return null
+        nextFailure = null
+        return VehicleResult.Failure(reason, "Fake 실패")
+    }
+}

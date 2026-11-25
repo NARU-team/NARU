@@ -26,6 +26,17 @@ android {
         buildConfigField("String", "SERVER_URL", "\"${localProperties.getProperty("naru.serverUrl", "")}\"")
     }
 
+    buildTypes {
+        // 쉼표 모드 촬영용 DEMO 도구(팀원 comma-demo 설정 그대로): 디버그는 기본 켬, -PcommaDemoMode=false로 숨김. 릴리스는 항상 끔
+        debug {
+            buildConfigField("boolean", "DEMO_MODE",
+                providers.gradleProperty("commaDemoMode").orElse("true").get().toBoolean().toString())
+        }
+        release {
+            buildConfigField("boolean", "DEMO_MODE", "false")
+        }
+    }
+
     // AAOS Car API(CarPropertyManager 등)를 쓰기 위한 선택 라이브러리.
     // 기어(GEAR_SELECTION) 조회에 필요하다.
     useLibrary("android.car")
@@ -49,6 +60,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    // 쉼표 모드 휴식 기록 (Room 엔티티·DAO는 Java라 annotationProcessor로 충분)
+    implementation(libs.androidx.room.runtime)
+    annotationProcessor(libs.androidx.room.compiler)
     implementation(libs.androidx.activity.compose)
 
     // Compose BOM: Compose 라이브러리들의 버전을 한 묶음으로 맞춘다.

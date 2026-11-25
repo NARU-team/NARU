@@ -66,6 +66,7 @@ data class HomeState(
 fun HomeScreen(
     state: HomeState,
     onStartCamping: () -> Unit,
+    onStartRest: () -> Unit,
     onDismissMessage: () -> Unit,
     modifier: Modifier = Modifier,
     /** 홈이 보일 때마다 차량 상태 칩을 다시 읽는다 (앱 시작 직후에는 차량 서비스가 준비 전일 수 있음) */
@@ -102,11 +103,11 @@ fun HomeScreen(
                     label = "쉼표 모드",
                     title = "잠깐 쉬기",
                     description = "15분에서 45분, 짧은 낮잠과 대기 시간",
-                    // 녹화용: 쉼표 모드(팀원 담당)가 연결되기 전까지 피그마처럼 보이게만 한다. 눌러도 아무 일도 없다
-                    chip = if (REST_MODE_RECORDING) "지난번 30분, 23°C" else "준비 중이에요",
+                    // 쉼표 모드(팀원 comma-demo를 ai.naru.app.comma로 옮김). 칩은 지어낸 기록 대신 고정 안내
+                    chip = "직접 설정해서 쉬기",
                     chipIcon = NaruIcons.Clock,
-                    startEnabled = REST_MODE_RECORDING,
-                    onStart = {},
+                    startEnabled = true,
+                    onStart = onStartRest,
                     modifier = Modifier.weight(1f),
                 )
                 ModeCard(
@@ -231,11 +232,6 @@ private fun Float.formatTemp(): String = if (this % 1f == 0f) toInt().toString()
 
 private const val ILLUSTRATION_WEIGHT = 0.36f
 
-/**
- * 데모 영상 녹화용: 쉼표 모드 카드를 준비된 것처럼 보이게 한다 (버튼 활성, 피그마 칩 문구 "지난번 30분, 23°C").
- * TODO(녹화 후 되돌리기): 쉼표 모드가 연결되면 지우거나 false로. 칩 문구는 실제 기록이 아니다.
- */
-private const val REST_MODE_RECORDING = false
 private val PEACH = Color(0xFFFFE6CB)
 private val PEACH_LIGHT = Color(0xFFFFF3E8)
 private val SUN = Color(0xFFFFD2A6)
@@ -270,6 +266,7 @@ private fun HomeScreenPreview() {
                 ),
             ),
             onStartCamping = {},
+            onStartRest = {},
             onDismissMessage = {},
         )
     }

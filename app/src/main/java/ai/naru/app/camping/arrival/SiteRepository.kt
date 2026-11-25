@@ -26,7 +26,9 @@ data class LocatedConditions(val site: Site?, val conditions: SiteConditions)
 /**
  * 차량 근처의 실제 야영장 (한국관광공사 고캠핑, 이슈 #46).
  * @property placeType 입지로 추정한 유형. 모르면 null
- * @property permission 자동차야영장이면 ALLOWED, 아니면 확인 필요(UNKNOWN)
+ * @property permission 자동차야영장(고캠핑 업종 또는 인허가 영업 중)이면 ALLOWED, 아니면 확인 필요(UNKNOWN)
+ * @property licensed 행정안전부 자동차야영장업 인허가 데이터에서 영업 중으로 확인됨 (이슈 #69).
+ *   인허가상 폐업·휴업인 곳은 서버가 목록에서 빼고 보낸다
  */
 data class NearbyPlace(
     val id: String,
@@ -38,6 +40,7 @@ data class NearbyPlace(
     val distanceKm: Double,
     val lat: Double,
     val lon: Double,
+    val licensed: Boolean = false,
 )
 
 /**

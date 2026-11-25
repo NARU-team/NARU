@@ -327,7 +327,7 @@ private fun NearbyPicker(
                             color = colors.textSecondary,
                         )
                         Text(
-                            text = if (loading) "불러오는 중…" else if (place.permission == CampingPermission.ALLOWED) "자동차야영장" else "차박 가능 여부 확인 필요",
+                            text = if (loading) "불러오는 중…" else nearbyPermissionText(place),
                             style = MaterialTheme.typography.labelMedium,
                             color = if (place.permission == CampingPermission.ALLOWED || loading) colors.accent else colors.textTertiary,
                         )
@@ -344,7 +344,7 @@ private fun NearbyPicker(
                 }
             }
         }
-        NaruBottomBar(note = "출처: 한국관광공사 고캠핑 정보. 오늘 밤 이용 가능 여부는 현장에서 확인해 주세요.") {
+        NaruBottomBar(note = NEARBY_SOURCE_NOTE) {
             NaruSecondaryButton(text = "지금 이 자리", onClick = onStayHere)
             NaruSecondaryButton(text = "시연 지역에서 고르기", onClick = actions.onChangeSite)
         }
@@ -370,6 +370,20 @@ private fun PlaceType.icon(): ImageVector = when (this) {
     PlaceType.BEACH -> NaruIcons.Tide
     PlaceType.FOREST -> NaruIcons.Tent
     PlaceType.LAKE -> NaruIcons.Moon
+}
+
+/** 근처 야영장 출처 (고캠핑 + 인허가 영업상태, 이슈 #69) */
+internal const val NEARBY_SOURCE_NOTE =
+    "출처: 한국관광공사 고캠핑 정보, 행정안전부 지방행정 인허가 데이터. 오늘 밤 이용 가능 여부는 현장에서 확인해 주세요."
+
+/**
+ * 근처 야영장 카드의 허용 표시. 인허가 영업 중 > 고캠핑 업종이 자동차야영장 > 확인 필요.
+ * "차박해도 됩니다" 같은 보장 표현은 쓰지 않는다 (AGENTS 5장): 등록 사실만 말한다
+ */
+internal fun nearbyPermissionText(place: NearbyPlace): String = when {
+    place.licensed -> "인허가 등록 자동차야영장"
+    place.permission == CampingPermission.ALLOWED -> "자동차야영장"
+    else -> "차박 가능 여부 확인 필요"
 }
 
 private fun CampingPermission.text() = when (this) {

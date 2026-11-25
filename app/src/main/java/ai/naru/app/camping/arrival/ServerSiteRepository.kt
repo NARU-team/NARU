@@ -98,6 +98,8 @@ object ServerJson {
                 distanceKm = p.getDouble("distanceKm"),
                 lat = p.getDouble("lat"),
                 lon = p.getDouble("lon"),
+                // 이슈 #69 이전 서버 응답에는 없다 → 없으면 false
+                licensed = p.optBoolean("licensed", false),
             )
         }
     }

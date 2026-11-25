@@ -1,3 +1,4 @@
+import { LICENSE_RECORDS, licenseOf, type LicenseRecord } from "./autoCampgrounds.js";
 import { distanceKm } from "./geo.js";
 import { fetchJson } from "./http.js";
 import type { CampingPermission, PlaceType } from "./sites.js";
@@ -23,8 +24,10 @@ export interface NearbyPlace {
   kind: string | null;
   /** 입지로 추정한 장소 유형. 알 수 없으면 null (앱이 테마 기본값을 씀) */
   placeType: PlaceType | null;
-  /** 자동차야영장이면 ALLOWED, 아니면 차박 허용 여부 확인 필요 */
+  /** 자동차야영장(고캠핑 업종 또는 인허가 영업 중)이면 ALLOWED, 아니면 차박 허용 여부 확인 필요 */
   permission: CampingPermission;
+  /** 행정안전부 자동차야영장업 인허가 데이터에서 영업 중으로 확인됨 (이슈 #69) */
+  licensed: boolean;
   facilities: string[];
   distanceKm: number;
   lat: number;
@@ -55,8 +58,12 @@ export async function fetchNearby(serviceKey: string, lat: number, lon: number):
   return toNearby(items, lat, lon);
 }
 
-/** 응답 항목 → 거리순 상위 장소. 좌표·이름이 없는 항목은 버린다 */
-export function toNearby(items: any[], lat: number, lon: number): NearbyPlace[] {
+/**
+ * 응답 항목 → 거리순 상위 장소. 좌표·이름이 없는 항목은 버린다.
+ * 인허가상 폐업·휴업인 곳은 빼고, 영업 중이면 licensed (이슈 #69).
+ * 빼는 건 상위 몇 곳으로 자르기 전에 한다 (빠진 자리를 다음으로 가까운 곳이 채우도록).
+ */
+export function toNearby(items: any[], lat: number, lon: number, licenses: LicenseRecord[] = LICENSE_RECORDS): NearbyPlace[] {
   return items
     .map((it): NearbyPlace | null => {
       const name = str(it?.facltNm ?? it?.name);
@@ -64,17 +71,22 @@ export function toNearby(items: any[], lat: number, lon: number): NearbyPlace[] 
       const pLon = Number(it?.mapX);
       if (!name || !Number.isFinite(pLat) || !Number.isFinite(pLon)) return null;
       const kind = str(it?.induty);
+      const address = str(it?.addr1);
+      const license = licenseOf({ name, lat: pLat, lon: pLon, address }, licenses);
+      if (license === "CLOSED" || license === "SUSPENDED") return null;
+      const licensed = license === "OPEN";
       return {
         id: str(it?.contentId) ?? `${pLat},${pLon}`,
         name,
         kind,
         placeType: placeTypeOf(str(it?.lctCl)),
-        permission: permissionOf(kind),
+        permission: licensed ? "ALLOWED" : permissionOf(kind),
+        licensed,
         facilities: facilitiesOf(it),
         distanceKm: Math.round(distanceKm(lat, lon, pLat, pLon) * 10) / 10,
         lat: pLat,
         lon: pLon,
-        address: str(it?.addr1),
+        address,
       };
     })
     .filter((p): p is NearbyPlace => p !== null)

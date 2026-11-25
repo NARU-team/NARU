@@ -8,6 +8,8 @@ composeBom = "2024.12.01"
 junit = "4.13.2"
 # 앱이 쓰는 코루틴(lifecycle 경유)과 같은 버전
 coroutinesTest = "1.7.3"
+# 쉼표 모드 휴식 기록(팀원 comma-demo는 2.8.4였으나 이 앱의 AGP 8.8/Kotlin 2.0에 맞춰 2.6.1)
+room = "2.6.1"
 json = "20240303"
 # Pleos Connect SDK (2026-10-19 릴리스 기준, 임의로 바꾸지 않는다)
 pleosVehicle = "2.3.2"
@@ -28,6 +30,8 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 json = { group = "org.json", name = "json", version.ref = "json" }
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 pleos-vehicle = { group = "ai.pleos.playground", name = "Vehicle", version.ref = "pleosVehicle" }
 pleos-fused-location = { group = "ai.pleos.playground", name = "FusedLocation", version.ref = "pleosFusedLocation" }

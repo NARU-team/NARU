@@ -1,6 +1,9 @@
 package ai.naru.app
 
 import ai.naru.app.camping.CampingViewModel
+import ai.naru.app.comma.CommaRoute
+import ai.naru.app.comma.RestViewModel
+import ai.naru.app.comma.theme.NARUTheme
 import ai.naru.app.ui.camping.BedtimeActions
 import ai.naru.app.ui.camping.CampingActions
 import ai.naru.app.ui.camping.CampingScreen
@@ -83,6 +86,9 @@ private fun NaruApp(app: NaruApplication) {
             ) } },
     )
 
+    // 쉼표 모드 화면이 열려 있는지 (홈의 쉼표 [시작])
+    var restOpen by rememberSaveable { mutableStateOf(false) }
+
     // 처음 시작하기(권한 동의)와 위치 권한 요청 (이슈 #44)
     var onboardingDone by remember { mutableStateOf(app.onboardingDone) }
     var locationGranted by remember { mutableStateOf(app.locationGateway.hasPermission()) }
@@ -139,6 +145,13 @@ private fun NaruApp(app: NaruApplication) {
                     endedNotice = if (state.restore?.needsManualCheck == true) "차박을 끝냈어요. 일부 설정은 직접 확인해 주세요" else "차박을 끝내고 설정을 되돌렸어요",
                     modifier = Modifier.weight(1f),
                 )
+                // 쉼표 모드: 홈 [시작] → 쉼표 설정부터. 쉼표에서 나가면 홈으로 (팀원 comma-demo)
+                restOpen && state.stage == CampingStage.IDLE -> Box(modifier = Modifier.weight(1f)) {
+                    NARUTheme(darkTheme = false, dynamicColor = false) {
+                        val restViewModel: RestViewModel = viewModel()
+                        CommaRoute(restViewModel, startEntered = true, onExit = { restOpen = false })
+                    }
+                }
                 else -> when (state.stage) {
                 CampingStage.IDLE -> HomeScreen(
                     state = HomeState(
@@ -151,6 +164,7 @@ private fun NaruApp(app: NaruApplication) {
                         restore = state.restore,
                     ),
                     onStartCamping = campingViewModel::start,
+                    onStartRest = { restOpen = true },
                     onDismissMessage = campingViewModel::dismissMessage,
                     onShown = campingViewModel::refreshHomeStatus,
                     modifier = Modifier.weight(1f),

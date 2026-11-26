@@ -63,8 +63,10 @@ private fun baseVehicleIssueContent(ui:RestUiState):VehicleIssueContent = when(u
 }
 
 internal fun issueActionAllowed(ui:RestUiState,action:VehicleIssueAction):Boolean =
-    action==VehicleIssueAction.RETURN ||
-        (ui.vehicleIssue!=null && vehicleIssueContent(ui).primary==action)
+    action == VehicleIssueAction.RETURN ||
+        (ui.vehicleIssue != null && vehicleIssueContent(ui).primary == action) ||
+        (action == VehicleIssueAction.CONTINUE_APP_ONLY &&
+            ui.vehicleIssue in setOf(VehicleIssue.CONTROL_FAILURE, VehicleIssue.CONTROL_UNKNOWN))
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -113,6 +115,13 @@ internal fun CommaExceptionScreen(ui:RestUiState,onAction:(VehicleIssueAction)->
                 FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp,Alignment.End),
                     verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     CommaButton("돌아가기",{onAction(VehicleIssueAction.RETURN)})
+                    if (ui.vehicleIssue in setOf(VehicleIssue.CONTROL_FAILURE, VehicleIssue.CONTROL_UNKNOWN)) {
+                        CommaButton(
+                            "온도 변경 없이 계속",
+                            { onAction(VehicleIssueAction.CONTINUE_APP_ONLY) },
+                            enabled = ui.vehicleControl.outcome != ControlOutcome.PENDING,
+                        )
+                    }
                     CommaButton(content.primaryLabel,{onAction(content.primary)},filled=true,
                         enabled=ui.vehicleControl.outcome!=ControlOutcome.PENDING)
                 }
@@ -126,16 +135,32 @@ internal fun CommaExceptionScreen(ui:RestUiState,onAction:(VehicleIssueAction)->
 @Composable
 internal fun CommaVehicleStatus(ui:RestUiState,onReview:()->Unit) {
     CommaDesignTheme {
-        Column(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp)) {
-            Text((if(ui.isMock)"Mock · " else "")+parkingLabel(ui.vehicle.parkingStatus)+
-                if(ui.localParkedConfirmed)" · 사용자 확인(앱 한정)" else "",
-                style=MaterialTheme.typography.bodyMedium)
-            Text(ui.vehicleControl.message,style=MaterialTheme.typography.bodyMedium,color=CommaDesign.Muted)
-            Text(if(ui.isMock || ui.capabilities.drivingSignal!=ControlSupport.SUPPORTED)
-                "실제 주행 감지 자동 종료 미지원 · 차량 신호 연동/검증 필요"
-                else "실제 주행 신호에 한해 종료 · 실차 검증 필요",
-                style=MaterialTheme.typography.bodyMedium,color=CommaDesign.Muted)
-            TextButton(onClick=onReview) {Text("연동/주차 상태 확인")}
+        Surface(color = CommaDesign.Ink.copy(alpha = 0.035f)) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 20.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    (if(ui.isMock)"Mock · " else "") + parkingLabel(ui.vehicle.parkingStatus) +
+                        if(ui.localParkedConfirmed)" · 사용자 확인" else "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (ui.vehicleControl.outcome in setOf(
+                        ControlOutcome.FAILURE,
+                        ControlOutcome.UNKNOWN,
+                        ControlOutcome.UNSUPPORTED,
+                    )
+                ) {
+                    Text(
+                        "일부 차량 기능 확인 필요",
+                        color = CommaDesign.Muted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                TextButton(onClick = onReview) { Text("상태 확인") }
+            }
         }
     }
 }

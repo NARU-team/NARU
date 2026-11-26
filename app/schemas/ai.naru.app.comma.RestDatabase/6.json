@@ -1,0 +1,390 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 6,
+    "identityHash": "ac9cb3d4631d34ed5ff357446d130496",
+    "entities": [
+      {
+        "tableName": "rest_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `endedAt` INTEGER NOT NULL, `plannedMinutes` INTEGER NOT NULL, `elapsedMillis` INTEGER NOT NULL, `reason` TEXT NOT NULL, `startBatteryPercent` INTEGER, `endBatteryPercent` INTEGER, `startIndoorCelsius` REAL, `endIndoorCelsius` REAL, `outdoorCelsius` REAL, `targetClimateCelsius` REAL, `screenBrightness` REAL, `lightingBrightness` REAL, `sound` TEXT, `feedback` INTEGER, `temperatureFeedback` TEXT, `feedbackSubmittedAt` INTEGER, `source` TEXT NOT NULL, `restoreSucceeded` INTEGER, `hvacPowerRestore` TEXT NOT NULL, `climateTemperatureRestore` TEXT NOT NULL, `ambientLightRestore` TEXT NOT NULL, `screenBrightnessRestore` TEXT NOT NULL, `natureSoundRestore` TEXT NOT NULL, `alarmRestore` TEXT NOT NULL, `chargingStateAtStart` TEXT NOT NULL, `chargingStateAtEnd` TEXT NOT NULL, `chargePortConnectedDuringRest` INTEGER, `chargingDetectedDuringRest` INTEGER, `chargingObservationComplete` INTEGER NOT NULL, `energyDataQuality` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAt",
+            "columnName": "endedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedMinutes",
+            "columnName": "plannedMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedMillis",
+            "columnName": "elapsedMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startBatteryPercent",
+            "columnName": "startBatteryPercent",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "endBatteryPercent",
+            "columnName": "endBatteryPercent",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "startIndoorCelsius",
+            "columnName": "startIndoorCelsius",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "endIndoorCelsius",
+            "columnName": "endIndoorCelsius",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "outdoorCelsius",
+            "columnName": "outdoorCelsius",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "targetClimateCelsius",
+            "columnName": "targetClimateCelsius",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "screenBrightness",
+            "columnName": "screenBrightness",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lightingBrightness",
+            "columnName": "lightingBrightness",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sound",
+            "columnName": "sound",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "feedback",
+            "columnName": "feedback",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "temperatureFeedback",
+            "columnName": "temperatureFeedback",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "feedbackSubmittedAt",
+            "columnName": "feedbackSubmittedAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "restoreSucceeded",
+            "columnName": "restoreSucceeded",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "hvacPowerRestore",
+            "columnName": "hvacPowerRestore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "climateTemperatureRestore",
+            "columnName": "climateTemperatureRestore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ambientLightRestore",
+            "columnName": "ambientLightRestore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenBrightnessRestore",
+            "columnName": "screenBrightnessRestore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "natureSoundRestore",
+            "columnName": "natureSoundRestore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alarmRestore",
+            "columnName": "alarmRestore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chargingStateAtStart",
+            "columnName": "chargingStateAtStart",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chargingStateAtEnd",
+            "columnName": "chargingStateAtEnd",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chargePortConnectedDuringRest",
+            "columnName": "chargePortConnectedDuringRest",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "chargingDetectedDuringRest",
+            "columnName": "chargingDetectedDuringRest",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "chargingObservationComplete",
+            "columnName": "chargingObservationComplete",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "energyDataQuality",
+            "columnName": "energyDataQuality",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "active_rest_session",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonKey` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `owner` TEXT NOT NULL, `phase` TEXT NOT NULL, `startedAtWallMillis` INTEGER NOT NULL, `endAtWallMillis` INTEGER NOT NULL, `startedAtElapsedMillis` INTEGER NOT NULL, `deadlineElapsedMillis` INTEGER NOT NULL, `savedAtWallMillis` INTEGER NOT NULL, `savedAtElapsedMillis` INTEGER NOT NULL, `selectedMinutes` INTEGER NOT NULL, `plannedMinutes` INTEGER NOT NULL, `extensionMinutes` INTEGER NOT NULL, `approvedBrightness` REAL NOT NULL, `approvedLighting` REAL NOT NULL, `sound` TEXT NOT NULL, `approvedClimateCelsius` REAL, `backupHvacPower` INTEGER, `backupClimateCelsius` REAL, `backupAmbientOn` INTEGER, `backupAmbientBrightness` INTEGER, `backupAmbientColor` INTEGER, `restoreState` TEXT NOT NULL, `source` TEXT NOT NULL, `alarmIssued` INTEGER NOT NULL, `completionRecorded` INTEGER NOT NULL, PRIMARY KEY(`singletonKey`))",
+        "fields": [
+          {
+            "fieldPath": "singletonKey",
+            "columnName": "singletonKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "owner",
+            "columnName": "owner",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "phase",
+            "columnName": "phase",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtWallMillis",
+            "columnName": "startedAtWallMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endAtWallMillis",
+            "columnName": "endAtWallMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtElapsedMillis",
+            "columnName": "startedAtElapsedMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deadlineElapsedMillis",
+            "columnName": "deadlineElapsedMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "savedAtWallMillis",
+            "columnName": "savedAtWallMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "savedAtElapsedMillis",
+            "columnName": "savedAtElapsedMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selectedMinutes",
+            "columnName": "selectedMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "plannedMinutes",
+            "columnName": "plannedMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "extensionMinutes",
+            "columnName": "extensionMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvedBrightness",
+            "columnName": "approvedBrightness",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvedLighting",
+            "columnName": "approvedLighting",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sound",
+            "columnName": "sound",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvedClimateCelsius",
+            "columnName": "approvedClimateCelsius",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "backupHvacPower",
+            "columnName": "backupHvacPower",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "backupClimateCelsius",
+            "columnName": "backupClimateCelsius",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "backupAmbientOn",
+            "columnName": "backupAmbientOn",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "backupAmbientBrightness",
+            "columnName": "backupAmbientBrightness",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "backupAmbientColor",
+            "columnName": "backupAmbientColor",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "restoreState",
+            "columnName": "restoreState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alarmIssued",
+            "columnName": "alarmIssued",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completionRecorded",
+            "columnName": "completionRecorded",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singletonKey"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ac9cb3d4631d34ed5ff357446d130496')"
+    ]
+  }
+}

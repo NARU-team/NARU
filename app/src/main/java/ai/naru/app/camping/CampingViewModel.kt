@@ -53,6 +53,8 @@ import ai.naru.app.camping.night.ThemeLightApplier
 import ai.naru.app.camping.night.ThemeTimer
 import java.time.LocalDateTime
 import java.time.LocalTime
+import ai.naru.app.session.SessionOwner
+import ai.naru.app.session.SessionOwnershipManager
 import ai.naru.app.vehicle.Gear
 import ai.naru.app.vehicle.VehicleGateway
 import ai.naru.app.vehicle.VehicleResult
@@ -257,6 +259,7 @@ class CampingViewModel(
     private val location: LocationGateway = FakeLocationGateway(location = null, permitted = false),
     /** 지금 시각. 테스트에서 바꿔 끼운다. */
     private val clock: () -> LocalDateTime = LocalDateTime::now,
+    private val sessionOwnership: SessionOwnershipManager = SessionOwnershipManager(),
 ) : ViewModel() {
 
     private val nightPreparer = NightPreparer(vehicle)
@@ -337,7 +340,7 @@ class CampingViewModel(
             val sites = try {
                 siteRepository.sites()
             } catch (e: Exception) {
-                Log.w(TAG, "장소 목록을 불러오지 못함", e)
+                logWarning("장소 목록을 불러오지 못함", e)
                 null
             }
             _state.update { it.copy(sites = sites ?: it.sites, sitesUnavailable = sites == null) }
@@ -353,8 +356,13 @@ class CampingViewModel(
             _state.update { it.copy(waitingForPark = true, message = null) }
             return
         }
+        if (!sessionOwnership.acquire(SessionOwner.CAMPING)) {
+            _state.update { it.copy(message = "쉼표 모드가 진행 중이라 차박 모드를 시작할 수 없습니다.") }
+            return
+        }
         dispatch(CampingEvent.Start(state.gear))
         if (_state.value.stage == CampingStage.ARRIVAL_CHECK) locate()
+        else sessionOwnership.release(SessionOwner.CAMPING)
     }
 
     /**
@@ -373,7 +381,7 @@ class CampingViewModel(
             if (_state.value.stage != CampingStage.ARRIVAL_CHECK) return@launch
             if (located == null) {
                 _state.update { it.copy(locating = false) }
-                Log.w(TAG, "위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
+                logWarning("위치로 장소를 찾지 못해 시연 지역 고르기로 대체")
                 return@launch
             }
             // 시연 지역 근처여도 먼저 근처 실제 야영장 3곳을 보여 준다 (사용자 피드백 2026-11-15).
@@ -896,7 +904,7 @@ class CampingViewModel(
         val original = _state.value.backup?.ambient
         themeLightJob = viewModelScope.launch {
             val result = themeLightApplier.turnOff(original)
-            if (result is ControlResult.Failed) Log.w(TAG, "테마 조명 끄기 실패: $result")
+            if (result is ControlResult.Failed) logWarning("테마 조명 끄기 실패: $result")
         }
     }
 
@@ -1172,6 +1180,7 @@ class CampingViewModel(
         alarm.stop()
         voice.release()
         speech?.release()
+        sessionOwnership.release(SessionOwner.CAMPING)
     }
 
     private fun dispatch(event: CampingEvent) {
@@ -1186,6 +1195,7 @@ class CampingViewModel(
                 if (previous != CampingStage.MORNING && result.stage == CampingStage.MORNING) onEnterMorning()
                 if (previous == CampingStage.MORNING && result.stage != CampingStage.MORNING) onLeaveMorning()
                 if (result.stage == CampingStage.IDLE) {
+                    sessionOwnership.release(SessionOwner.CAMPING)
                     stopNarration()
                     refreshHomeStatus()
                     // 도착·취침 준비 중 기어가 P를 벗어나면 P 기다리기 화면으로 (다시 P가 되면 처음부터 이어서)
@@ -1254,6 +1264,16 @@ class CampingViewModel(
                     morningReason = if (event is CampingEvent.Start) null else it.morningReason,
                 )
             }
+    }
+
+    private fun logWarning(message: String, error: Throwable? = null) {
+        // Local JVM unit tests ship an android.util.Log stub that throws. Logging must not
+        // escape a lifecycle coroutine or leak into the following test.
+        try {
+            if (error == null) Log.w(TAG, message) else Log.w(TAG, message, error)
+        } catch (_: RuntimeException) {
+            // Logging is diagnostic only; the user-visible fallback state was already updated.
+        }
     }
 
     private companion object {

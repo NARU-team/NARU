@@ -141,7 +141,60 @@ class FinishedPresentationTest {
         assertNull(manager.state.value.completed)
     }
     @Test fun allRestorationLabelsAreDistinct() {
-        assertEquals(setOf("성공","실패","미지원","확인 불가"),
-            RestorationOutcome.entries.map(::restorationLabel).toSet())
+        assertEquals(
+            setOf("복구 완료", "복구 실패", "미지원", "확인 불가", "사용자 직접 확인 필요"),
+            RestorationOutcome.entries.map(::restorationLabel).toSet(),
+        )
+    }
+
+    @Test fun figmaSoundChoicesHaveDistinctLabelsIncludingLake() {
+        assertEquals("호수", soundLabel(RestSound.LAKE))
+        assertEquals(RestSound.entries.size, RestSound.entries.map(::soundLabel).toSet().size)
+    }
+
+    @Test fun detailedRestorationReportContainsEveryFinishedItem() {
+        val report = RestorationReport(
+            hvacPower = RestorationOutcome.SUCCESS,
+            climateTemperature = RestorationOutcome.FAILURE,
+            ambientLight = RestorationOutcome.UNSUPPORTED,
+            screenBrightness = RestorationOutcome.UNKNOWN,
+            natureSound = RestorationOutcome.MANUAL_CHECK,
+            alarm = RestorationOutcome.SUCCESS,
+        )
+        assertEquals(6, report.outcomes.size)
+        assertEquals(
+            listOf(
+                RestorationOutcome.SUCCESS,
+                RestorationOutcome.FAILURE,
+                RestorationOutcome.UNSUPPORTED,
+                RestorationOutcome.UNKNOWN,
+                RestorationOutcome.MANUAL_CHECK,
+                RestorationOutcome.SUCCESS,
+            ),
+            report.outcomes,
+        )
+    }
+
+    @Test fun restorationRetryPreservesExistingFeedback() {
+        val original = RestRecord(
+            id = "feedback-session",
+            startedAt = 1L,
+            endedAt = 2L,
+            plannedMinutes = 15,
+            elapsedMillis = 1L,
+            reason = EndReason.MANUAL,
+            feedback = 5,
+            temperatureFeedback = TemperatureFeedback.COMFORTABLE,
+            feedbackSubmittedAt = 3L,
+            source = RecordSource.REAL,
+        )
+        val updated = original.copy(
+            hvacPowerRestore = RestorationOutcome.SUCCESS,
+            climateTemperatureRestore = RestorationOutcome.MANUAL_CHECK,
+        )
+        assertEquals(5, updated.feedback)
+        assertEquals(TemperatureFeedback.COMFORTABLE, updated.temperatureFeedback)
+        assertEquals(3L, updated.feedbackSubmittedAt)
+        assertEquals(RestorationOutcome.SUCCESS, updated.hvacPowerRestore)
     }
 }

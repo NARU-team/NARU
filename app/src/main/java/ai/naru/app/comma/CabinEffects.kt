@@ -52,8 +52,14 @@ internal fun CabinEffects(active: Boolean, phase: RestPhase, settings: CabinSett
                         delay(1500)
                     } else if (settings.sound == RestSound.SOFT_TONE) {
                         while (true) { tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 200); delay(15_000) }
+                    } else if (settings.sound in setOf(RestSound.RAIN, RestSound.OCEAN, RestSound.FOREST, RestSound.LAKE)) {
+                        RestAudioCoordinator.playNature(settings.sound)
+                        while (true) delay(60_000)
                     }
-                } finally { tone?.release() }
+                } finally {
+                    RestAudioCoordinator.stopNature()
+                    tone?.release()
+                }
             }
         }
     }

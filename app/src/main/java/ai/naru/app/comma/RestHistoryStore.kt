@@ -35,6 +35,62 @@ class RestHistoryStore(
         retry()
     }
 
+    fun submitFeedback(
+        sessionId: String,
+        satisfaction: Int,
+        temperatureFeedback: TemperatureFeedback,
+        submittedAt: Long,
+        onResult: (Boolean) -> Unit = {},
+    ) {
+        require(satisfaction in 1..5)
+        applicationScope.launch {
+            mutex.withLock {
+                try {
+                    val saved = repository.submitFeedback(
+                        sessionId,
+                        satisfaction,
+                        temperatureFeedback,
+                        submittedAt,
+                    )
+                    mutable.value = state.value.copy(
+                        records = repository.recent(),
+                        error = if (saved) null else "피드백이 이미 저장되었거나 기록을 찾지 못했습니다.",
+                    )
+                    onResult(saved)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    mutable.value = state.value.copy(error = "피드백 저장에 실패했습니다.")
+                    onResult(false)
+                }
+            }
+        }
+    }
+
+    fun updateRestoration(
+        sessionId: String,
+        report: RestorationReport,
+        onResult: (Boolean) -> Unit = {},
+    ) {
+        applicationScope.launch {
+            mutex.withLock {
+                try {
+                    val updated = repository.updateRestoration(sessionId, report)
+                    mutable.value = state.value.copy(
+                        records = repository.recent(),
+                        error = if (updated) null else "복구 결과를 저장할 종료 기록을 찾지 못했습니다.",
+                    )
+                    onResult(updated)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    mutable.value = state.value.copy(error = "복구 결과 저장에 실패했습니다.")
+                    onResult(false)
+                }
+            }
+        }
+    }
+
     fun retry() {
         applicationScope.launch {
             mutex.withLock {

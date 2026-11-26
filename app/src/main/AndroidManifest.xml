@@ -8,6 +8,8 @@
 
     <!-- 중계 서버 호출 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 정확 알람 권한이 허용되지 않으면 구현에서 비정확 알람으로 안전하게 대체한다. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!-- Vehicle SDK: 공조(조회/제어) -->
     <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
@@ -27,6 +29,9 @@
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
     <!-- AAOS: 바깥 온도(ENV_OUTSIDE_TEMPERATURE), 홈 화면 칩 (이슈 #33) -->
     <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT" />
+    <!-- AAOS EV 구동 배터리 충전 상태·에너지 조회 (쉼표 기록 품질 판정 전용, 제어 권한 아님) -->
+    <uses-permission android:name="android.car.permission.CAR_ENERGY" />
+    <uses-permission android:name="android.car.permission.CAR_ENERGY_PORTS" />
 
     <!-- Android 11+ 패키지 가시성: Pleos 차량 서비스 설치 여부를 확인하려면 미리 선언해야 한다 -->
     <queries>
@@ -43,6 +48,26 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Naru">
+        <receiver
+            android:name=".comma.RestAlarmReceiver"
+            android:exported="false" />
+        <activity
+            android:name=".comma.CommaGleoActivity"
+            android:exported="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="NARU_COMMA_PROPOSE_SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="NARU_COMMA_EXTEND_REST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="NARU_COMMA_GET_STATUS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="true">

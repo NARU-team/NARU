@@ -51,13 +51,16 @@ internal fun CommaWakingScreen(ui: RestUiState, actions: RestUiActions, onBack: 
                     Row(Modifier.fillMaxWidth().height(448.dp),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                         WakingAlarm(ui,Modifier.weight(1068f).fillMaxHeight())
                         Column(Modifier.weight(520f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                            RestingStatusCard(CommaGlyph.SCREEN,"앱 화면",brightness,
-                                if(alarmOnly) "알람 전용 · 밝기 변경 안 함" else "종료 전 밝기 변화 적용",Modifier.weight(1f))
-                            RestingStatusCard(CommaGlyph.CLOCK,"종료 알림","짧은 알림 톤",
-                                "기기 음량 설정에 따름",Modifier.weight(1f))
+                            RestingStatusCard(CommaGlyph.SCREEN,"화면",brightness,
+                                if(alarmOnly) "알람 전용 · 밝기 변경 안 함" else "천천히 밝아지고 있어요",Modifier.weight(1f))
+                            RestingStatusCard(CommaGlyph.CLOCK,"알람","울리고 있어요",
+                                "기기 알람 음량 설정에 따름",Modifier.weight(1f))
                             RestingStatusCard(CommaGlyph.BATTERY,
-                                if(ui.isMock)"차량 배터리 · 모의" else "차량 배터리",battery,
-                                "휴식 전후 변화량 미측정",Modifier.weight(1f))
+                                "${ui.session.plannedMinutes}분 쉬는 동안",
+                                ui.sessionStartBatteryPercent?.let { start ->
+                                    ui.vehicle.batteryPercent?.let { end -> "$start → $end%" }
+                                } ?: battery,
+                                "실제 SOC 조회값",Modifier.weight(1f))
                         }
                     }
                 } else {
@@ -75,9 +78,10 @@ internal fun CommaWakingScreen(ui: RestUiState, actions: RestUiActions, onBack: 
                     verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     CommaButton("5분 더",{actions.extend(5)},enabled=confirmation>0)
                     CommaButton("10분 더",{actions.extend(10)},enabled=confirmation>0)
-                    CommaButton("휴식 종료",actions.finish,filled=true,enabled=confirmation>0)
+                    CommaButton("다 쉬기",actions.finish,filled=true,enabled=confirmation>0)
                 }
-                Text("종료 알림은 짧은 톤이며 기기의 음량 설정을 따릅니다. 실제 차량은 제어하지 않습니다.",
+                ui.alarmTimingWarning?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                Text("알람은 기기의 알람 음량 설정을 따릅니다. 차량 조명은 지원되는 경우에만 단계적으로 높입니다.",
                     color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
                 if(ui.isMock) Text("모의 차량 데이터 사용 · 배터리 변화량이나 예측을 표시하지 않습니다.",
                     color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)

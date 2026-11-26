@@ -15,6 +15,8 @@ internal fun CommaDemoControls(
     onDeadline:()->Unit,onExpire:()->Unit,onException:(VehicleIssue)->Unit,
     onEnvironment:(Boolean)->Unit
 ) {
+    // 일반 사용자 화면에서는 촬영용 진입점과 조작 패널을 노출하지 않는다.
+    if (!ui.isDemo) return
     var expanded by rememberSaveable { mutableStateOf(false) }
     CommaDesignTheme {
         Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp)) {

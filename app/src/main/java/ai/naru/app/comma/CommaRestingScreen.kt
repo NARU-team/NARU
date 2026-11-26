@@ -35,7 +35,7 @@ internal fun CommaRestingScreen(ui: RestUiState, actions: RestUiActions, onBack:
     if (ui.session.phase != RestPhase.RESTING) return
     val indoor = ui.vehicle.indoorCelsius?.let { "${it}°C" } ?: "정보 없음"
     val battery = ui.vehicle.batteryPercent?.let { "${it}%" } ?: "정보 없음"
-    val sound = if (ui.cabin.sound == RestSound.SILENT) "소리 없이" else "15초 간격 톤"
+    val sound = soundLabel(ui.cabin.sound)
     val mock = if (ui.isMock) " · 모의" else ""
     CommaDesignTheme {
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -64,7 +64,8 @@ internal fun CommaRestingScreen(ui: RestUiState, actions: RestUiActions, onBack:
                         Column(Modifier.weight(520f).fillMaxHeight(),
                             verticalArrangement=Arrangement.spacedBy(12.dp)) {
                             RestingStatusCard(CommaGlyph.TEMPERATURE,"실내$mock",indoor,
-                                "공조 유지 여부 미확인",Modifier.weight(1f))
+                                ui.selectedClimateCelsius?.let { "${it}°C로 맞춰 두는 중" }
+                                    ?: "공조 유지 여부 미확인",Modifier.weight(1f))
                             RestingStatusCard(CommaGlyph.SOUND,"앱 음향",sound,
                                 "기기 음량 설정에 따름",Modifier.weight(1f))
                             RestingStatusCard(CommaGlyph.BATTERY,"차량 배터리$mock",battery,
@@ -83,9 +84,7 @@ internal fun CommaRestingScreen(ui: RestUiState, actions: RestUiActions, onBack:
                 FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End),
                     verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     CommaButton("5분 더",{actions.extend(5)})
-                    // Preserve the existing 10-minute extension, absent from the Figma prototype.
-                    CommaButton("10분 더",{actions.extend(10)})
-                    CommaButton("휴식 종료",actions.finishResting,filled=true)
+                    CommaButton("그만 쉬기",actions.finishResting,filled=true)
                 }
                 val alarmOnly=ui.isDemo && ui.demoVehicle?.mode==DemoRestMode.ALARM_ONLY
                 Text(if(alarmOnly) "연장 포함 계획 ${ui.session.plannedMinutes}분 · 알람 전용"

@@ -2,7 +2,12 @@ package ai.naru.app
 
 import ai.naru.app.camping.CampingViewModel
 import ai.naru.app.comma.CommaRoute
+import ai.naru.app.comma.GleoCommaActionStore
+import ai.naru.app.comma.GleoCommaContract
+import ai.naru.app.comma.GleoNavigationDecision
+import ai.naru.app.comma.RestApplicationServices
 import ai.naru.app.comma.RestViewModel
+import ai.naru.app.comma.gleoNavigationDecision
 import ai.naru.app.comma.theme.NARUTheme
 import ai.naru.app.ui.camping.BedtimeActions
 import ai.naru.app.ui.camping.CampingActions
@@ -47,6 +52,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
+import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.viewModelFactory
 
 class MainActivity : ComponentActivity() {
@@ -83,14 +90,41 @@ private fun NaruApp(app: NaruApplication) {
                 app.intentRepository,
                 app.speechInput,
                 app.locationGateway,
+                sessionOwnership = app.sessionOwnership,
             ) } },
     )
 
     // 쉼표 모드 화면이 열려 있는지 (홈의 쉼표 [시작])
     var restOpen by rememberSaveable { mutableStateOf(false) }
 
+    val campingState by campingViewModel.state.collectAsStateWithLifecycle()
+    val gleoAction by GleoCommaActionStore.actions.collectAsStateWithLifecycle()
+
     // 처음 시작하기(권한 동의)와 위치 권한 요청 (이슈 #44)
     var onboardingDone by remember { mutableStateOf(app.onboardingDone) }
+    LaunchedEffect(gleoAction?.requestId, campingState.stage, onboardingDone) {
+        val action = gleoAction ?: return@LaunchedEffect
+        if (!onboardingDone) {
+            delay((action.expiresAtWallMillis - System.currentTimeMillis()).coerceAtLeast(0L))
+            GleoCommaActionStore.consume(action.requestId)
+            return@LaunchedEffect
+        }
+        val activeRestPhase = if (action.action == GleoCommaContract.ACTION_EXTEND_REST) {
+            RestApplicationServices.activeSession(app).load()?.phase
+        } else {
+            null
+        }
+        when (
+            gleoNavigationDecision(
+                action = action,
+                campingIdle = campingState.stage == CampingStage.IDLE,
+                activeRestPhase = activeRestPhase,
+            )
+        ) {
+            GleoNavigationDecision.OPEN_COMMA -> restOpen = true
+            GleoNavigationDecision.DISCARD -> GleoCommaActionStore.consume(action.requestId)
+        }
+    }
     var locationGranted by remember { mutableStateOf(app.locationGateway.hasPermission()) }
     var locateAfterGrant by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -115,7 +149,7 @@ private fun NaruApp(app: NaruApplication) {
       Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 세션이 없으면(대기) 홈, 있으면 차박 화면 (홈의 [시작]이 바로 차박을 시작한다, 이슈 #33)
-            val state by campingViewModel.state.collectAsStateWithLifecycle()
+            val state = campingState
             when {
                 !onboardingDone -> OnboardingScreen(
                     locationGranted = locationGranted,

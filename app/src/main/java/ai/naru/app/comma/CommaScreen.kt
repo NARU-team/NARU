@@ -107,7 +107,7 @@ internal fun RestPreparationCard(
 @Composable
 internal fun ClimateRecommendationCard(ui: RestUiState, onClimate: () -> Unit) {
     val vehicle = ui.vehicle
-    val recommendation = recommendClimate(vehicle)
+    val recommendation = recommendClimate(vehicle, ui.history.records)
     RestSection("공조 추천") {
         Text("실내 ${vehicle.indoorCelsius?.let { "$it°C" } ?: "정보 없음"} / 실외 ${vehicle.outdoorCelsius?.let { "$it°C" } ?: "정보 없음"}")
         Text("차량: ${parkingLabel(vehicle.parkingStatus)} · 배터리 ${vehicle.batteryPercent?.let { "$it%" } ?: "정보 없음"}")

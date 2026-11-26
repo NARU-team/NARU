@@ -1,0 +1,77 @@
+{
+  "packageName": "ai.naru.app",
+  "appDescription": "An in-vehicle app that prepares, runs, and reports a parked rest session without bypassing user approval.",
+  "version": "0.1.0",
+  "actionCalls": [
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "NARU_COMMA_PROPOSE_SETTINGS",
+        "description": "Proposes one or more settings for a parked rest session and opens the app for user confirmation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "durationMinutes": {
+              "type": "number",
+              "description": "The total planned rest duration in minutes."
+            },
+            "targetTemperatureCelsius": {
+              "type": "number",
+              "description": "The requested absolute cabin target temperature in degrees Celsius."
+            },
+            "temperatureDeltaCelsius": {
+              "type": "number",
+              "description": "The requested relative cabin target temperature change in degrees Celsius."
+            },
+            "screenBrightnessPercent": {
+              "type": "number",
+              "description": "The requested app screen brightness from zero to one hundred percent."
+            },
+            "ambientLightPercent": {
+              "type": "number",
+              "description": "The requested vehicle ambient light brightness from zero to one hundred percent."
+            },
+            "restSound": {
+              "type": "string",
+              "enum": ["SILENT", "RAIN", "OCEAN", "FOREST", "LAKE"],
+              "description": "The requested sound played during the rest session."
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "NARU_COMMA_EXTEND_REST",
+        "description": "Proposes extending the active rest session and opens the app for user confirmation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "minutes": {
+              "type": "number",
+              "description": "The extension duration in minutes, limited by the app to five or ten minutes."
+            }
+          },
+          "required": ["minutes"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "component": "activity",
+        "name": "NARU_COMMA_GET_STATUS",
+        "description": "Returns the current stage and remaining time of the parked rest session.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    }
+  ]
+}

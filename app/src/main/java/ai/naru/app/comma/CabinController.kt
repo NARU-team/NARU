@@ -3,7 +3,7 @@ package ai.naru.app.comma
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-enum class RestSound { SILENT, SOFT_TONE }
+enum class RestSound { SILENT, SOFT_TONE, RAIN, OCEAN, FOREST, LAKE }
 data class CabinSettings(
     val brightness: Float = 0.2f,
     val lighting: Float = 0.15f,

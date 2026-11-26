@@ -22,10 +22,19 @@ import ai.naru.app.camping.record.FileSessionRecordStore
 import ai.naru.app.camping.record.SessionRecordStore
 import java.io.File
 import ai.naru.app.camping.night.NightSound
+import ai.naru.app.comma.AaosCommaChargingSource
+import ai.naru.app.comma.CommaChargingSource
+import ai.naru.app.comma.GatewayCommaVehicleRepository
+import ai.naru.app.comma.VehicleRepository
+import ai.naru.app.session.SessionOwnershipManager
 import ai.naru.app.vehicle.FakeVehicleGateway
 import ai.naru.app.vehicle.PleosVehicleGateway
+import ai.naru.app.vehicle.ReadOnlyCarPropertyManagerProvider
 import ai.naru.app.vehicle.VehicleGateway
 import android.app.Application
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * 앱 전체에서 하나만 있어야 하는 객체를 들고 있는 곳.
@@ -34,11 +43,28 @@ import android.app.Application
  */
 class NaruApplication : Application() {
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val sessionOwnership = SessionOwnershipManager()
+
     /**
      * Pleos 차량 서비스가 있으면(Pleos 에뮬레이터·실차) 실제 차량, 없으면(일반 에뮬레이터·기기) Fake를 쓴다.
      */
     val vehicleGateway: VehicleGateway by lazy {
         if (PleosVehicleGateway.isAvailable(this)) PleosVehicleGateway(this) else FakeVehicleGateway()
+    }
+
+    /** 쉼표 모드가 차박 모드와 같은 실제/Fake 차량 연결을 사용하도록 하는 어댑터. */
+    val commaVehicleRepository: VehicleRepository by lazy {
+        GatewayCommaVehicleRepository(vehicleGateway, applicationScope)
+    }
+
+    /** 기존 AAOS 연결을 소유하지 않고 쉼표 충전 상태를 읽기만 한다. */
+    val commaChargingSource: CommaChargingSource by lazy {
+        AaosCommaChargingSource(
+            manager = (vehicleGateway as? ReadOnlyCarPropertyManagerProvider)
+                ?.readOnlyCarPropertyManager,
+            applicationScope = applicationScope,
+        )
     }
 
     /** 서버 주소(local.properties의 naru.serverUrl)가 있으면 중계 서버, 없으면 내장 샘플 데이터. */

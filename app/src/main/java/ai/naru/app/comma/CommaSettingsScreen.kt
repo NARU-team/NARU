@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 /** UI-only convenience; does not alter the timer's accepted 1..180-minute range. */
 internal fun stepCommaMinutes(current: Int, direction: Int): Int {
@@ -27,49 +28,163 @@ internal fun stepCommaMinutes(current: Int, direction: Int): Int {
     return (current + direction * 5).coerceIn(1,180)
 }
 
+private fun intentBeforeValue(ui: RestUiState, change: CommaProposedChange): String = when (change) {
+    is CommaProposedChange.Duration -> "현재 ${ui.session.selectedMinutes}분 → ${change.minutes}분"
+    is CommaProposedChange.TemperatureAbsolute ->
+        "현재 ${ui.selectedClimateCelsius?.let { "$it°C" } ?: "추천값"} → ${change.celsius}°C"
+    is CommaProposedChange.TemperatureDelta ->
+        "현재 ${ui.selectedClimateCelsius?.let { "$it°C" } ?: "추천값"} → ${change.deltaCelsius}°C 조정"
+    is CommaProposedChange.Sound -> "현재 ${soundLabel(ui.session.settings.sound)} → ${soundLabel(change.sound)}"
+    is CommaProposedChange.Brightness ->
+        "현재 ${(ui.session.settings.brightness * 100).toInt()}% → ${change.percent}%"
+    is CommaProposedChange.AmbientLight ->
+        "현재 ${(ui.session.settings.lighting * 100).toInt()}% → ${change.percent}%"
+    is CommaProposedChange.Extension -> "현재 계획 ${ui.session.plannedMinutes}분 → ${change.minutes}분 연장"
+}
+
 /** Only settings/home are restyled in phase one; existing session screens stay intact. */
 @Composable
 fun CommaScreen(ui: RestUiState, actions: RestUiActions, onBack: () -> Unit,
     wakingActions: RestUiActions = actions,
     onFinishedHome: () -> Unit = onBack, onNewRest: () -> Unit = {}) {
     var settingsRequested by rememberSaveable { mutableStateOf(true) }
+    var soundRequested by rememberSaveable { mutableStateOf(false) }
+    var showIntentInput by rememberSaveable { mutableStateOf(false) }
+    var utterance by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(ui.active) { if(ui.active) settingsRequested=false }
-    when (commaDestination(ui, settingsRequested)) {
-        CommaDestination.SETTINGS -> CommaSettingsScreen(ui,actions,onBack)
-        CommaDestination.RESTING -> CommaRestingScreen(ui,actions,onBack)
-        CommaDestination.WAKING -> CommaWakingScreen(ui,wakingActions,onBack)
-        CommaDestination.FINISHED -> CommaFinishedScreen(ui,actions.retrySave,onFinishedHome,onNewRest)
-        CommaDestination.LEGACY -> Column(Modifier.fillMaxSize()) {
-            if(!ui.active && !ui.isDemo) TextButton(onClick={settingsRequested=true}) { Text("휴식 설정으로 돌아가기") }
-            Box(Modifier.weight(1f)) { LegacyCommaScreen(ui,actions,onBack) }
+    Box(Modifier.fillMaxSize()) {
+        when {
+            ui.vehicleControl.outcome == ControlOutcome.PENDING -> CommaApplyingScreen(ui)
+            soundRequested -> CommaSoundScreen(ui, actions) { soundRequested = false }
+            commaDestination(ui, settingsRequested) == CommaDestination.SETTINGS ->
+                CommaSettingsScreen(
+                    ui, actions, onBack,
+                    onChooseSound = { soundRequested = true },
+                    onNaturalLanguage = { showIntentInput = true },
+                )
+            commaDestination(ui, settingsRequested) == CommaDestination.RESTING -> CommaRestingScreen(ui,actions,onBack)
+            commaDestination(ui, settingsRequested) == CommaDestination.WAKING -> CommaWakingScreen(ui,wakingActions,onBack)
+            commaDestination(ui, settingsRequested) == CommaDestination.FINISHED -> CommaFinishedScreen(ui,actions.retrySave,actions.submitFeedback,onFinishedHome,onNewRest)
+            else -> Column(Modifier.fillMaxSize()) {
+                if(!ui.active && !ui.isDemo) TextButton(onClick={settingsRequested=true}) { Text("휴식 설정으로 돌아가기") }
+                Box(Modifier.weight(1f)) { LegacyCommaScreen(ui,actions,onBack) }
+            }
         }
+    }
+    if (showIntentInput) {
+        AlertDialog(
+            onDismissRequest = { showIntentInput = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(28.dp),
+            title = { Text("설정 변경 요청") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("연결된 쉼표 서버를 먼저 사용하고, 실패하면 로컬 규칙으로 제안합니다. Gleo AI 연동은 아닙니다.")
+                OutlinedTextField(
+                    value = utterance,
+                    onValueChange = { utterance = it },
+                    label = { Text("예: 20분만 쉬고 싶어") },
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = actions.startSpeechInput,
+                        enabled = ui.speechStatus !in setOf(CommaSpeechStatus.LISTENING, CommaSpeechStatus.RECOGNIZING),
+                    ) { Text("음성으로 말하기") }
+                    if (ui.speechStatus in setOf(CommaSpeechStatus.LISTENING, CommaSpeechStatus.RECOGNIZING)) {
+                        TextButton(onClick = actions.stopSpeechInput) { Text("음성 입력 취소") }
+                    }
+                }
+                ui.speechText?.let {
+                    Text("인식 중: $it", color = CommaDesign.Muted)
+                    LaunchedEffect(it) { utterance = it }
+                }
+                ui.speechMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                ui.intentResultMessage?.let { Text(it, color = CommaDesign.Muted) }
+            } },
+            confirmButton = { TextButton(
+                enabled = utterance.isNotBlank() && !ui.intentProcessing,
+                onClick = { actions.proposeIntent(utterance); showIntentInput = false },
+            ) { Text("제안 만들기") } },
+            dismissButton = { TextButton(onClick = { showIntentInput = false }) { Text("취소") } },
+        )
+    }
+    ui.pendingIntentProposal?.let { proposal ->
+        AlertDialog(
+            onDismissRequest = actions.cancelIntent,
+            containerColor = Color.White,
+            shape = RoundedCornerShape(28.dp),
+            title = { Text("변경 내용을 확인하세요") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("요청: ${proposal.utterance}")
+                Text("출처: ${when (proposal.source) {
+                    CommaProposalSource.LLM_SERVER -> "쉼표 LLM 서버"
+                    CommaProposalSource.LOCAL_RULE -> "로컬 규칙"
+                    CommaProposalSource.GLEO -> "Gleo"
+                    CommaProposalSource.UNAVAILABLE -> "사용 불가"
+                }}", color = CommaDesign.Muted)
+                Text("변경 예정: ${proposal.description}", fontWeight = FontWeight.Bold)
+                proposal.changes.forEach { Text(intentBeforeValue(ui, it), color = CommaDesign.Muted) }
+                Text("승인 시 현재 세션 상태와 차량 범위를 다시 검사합니다.")
+            } },
+            confirmButton = { TextButton(onClick = actions.approveIntent) { Text("승인하고 적용") } },
+            dismissButton = { TextButton(onClick = actions.cancelIntent) { Text("취소") } },
+        )
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun CommaSettingsScreen(ui: RestUiState, actions: RestUiActions, onBack: () -> Unit) {
+internal fun CommaSettingsScreen(
+    ui: RestUiState,
+    actions: RestUiActions,
+    onBack: () -> Unit,
+    onChooseSound: () -> Unit = {},
+    onNaturalLanguage: () -> Unit = {},
+) {
     var direct by rememberSaveable { mutableStateOf(ui.session.selectedMinutes !in listOf(15,30,45)) }
     var editor by rememberSaveable { mutableStateOf<String?>(null) }
     var draft by rememberSaveable { mutableStateOf("") }
     var showHistory by rememberSaveable { mutableStateOf(false) }
-    val recommendation=recommendClimate(ui.vehicle)
+    var previewSound by remember { mutableStateOf<RestSound?>(null) }
+    DisposableEffect(previewSound) {
+        previewSound?.let(RestAudioCoordinator::playNature)
+        onDispose(RestAudioCoordinator::stopNature)
+    }
+    LaunchedEffect(previewSound) {
+        if (previewSound != null) {
+            delay(3_000)
+            previewSound = null
+        }
+    }
+    val recommendation = recommendClimate(ui.vehicle, ui.history.records)
+    val lastRealTemperature = ui.history.records.firstOrNull {
+        it.source == RecordSource.REAL && it.targetClimateCelsius != null
+    }?.targetClimateCelsius
+    val energyForecast = forecastEnergy(
+        ui.vehicle.batteryPercent,
+        ui.session.selectedMinutes,
+        ui.history.records,
+        currentOutdoorCelsius = ui.vehicle.outdoorCelsius,
+        targetClimateCelsius = recommendation.targetCelsius,
+    )
     val select: (Int) -> Unit = { actions.selectMinutes(it) }
     CommaDesignTheme {
         BoxWithConstraints(Modifier.fillMaxSize().background(Color.White)) {
             // Reference sizes are Figma px. Layout uses window dp, bounded type and 48dp+ targets.
             val wide=maxWidth >= 900.dp && maxWidth > maxHeight
             val scale=(maxWidth.value / if(wide) 1700f else 840f).coerceIn(0.5f,1f)
-            val padding=(if(wide) 56f else 40f)*scale
+            val padding=(if(wide) 28f else 24f)*scale
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding.dp),
-                verticalArrangement=Arrangement.spacedBy(18.dp)) {
+                verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment=Alignment.CenterVertically) {
                     TextButton(onClick=onBack,modifier=Modifier.sizeIn(minWidth=48.dp,minHeight=48.dp)) {
                         Text("‹",fontSize=32.sp,modifier=Modifier.semantics { contentDescription="쉼표 모드 나가기" })
                     }
                     Text("쉼표 설정",fontSize=(40*scale).coerceIn(24f,36f).sp,fontWeight=FontWeight.Bold)
                 }
-                Text(if(ui.isMock) "모의 차량 데이터 · 실제 공조·차량 조명 제어 없음" else "차량 제어 여부는 응답 확인 후 표시합니다.",
-                    color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
+                if (ui.isMock) {
+                    Text("모의 차량 데이터 · 실제 공조·차량 조명 제어 없음",
+                        color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
+                }
                 val preparation: @Composable () -> Unit = {
                     CommaPanel(tint=CommaDesign.Suggestion) {
                         Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -81,13 +196,43 @@ internal fun CommaSettingsScreen(ui: RestUiState, actions: RestUiActions, onBack
                             }
                         }
                         Text(recommendation.message,style=MaterialTheme.typography.bodyMedium)
-                        Text("실외 ${ui.vehicle.outdoorCelsius?.let { "$it°C" } ?: "정보 없음"}  ·  배터리 ${ui.vehicle.batteryPercent?.let { "$it%" } ?: "정보 없음"}",
+                        Text(
+                            listOfNotNull(
+                                ui.vehicle.outdoorCelsius?.let { "실외 $it°C" },
+                                lastRealTemperature?.let { "지난번 $it°C" },
+                                when {
+                                    ui.charging.state == ChargingState.CHARGING -> "현재 충전 중 · 방전 예측과 분리"
+                                    ui.charging.portConnected == true -> "충전 포트 연결 · 방전 예측과 분리"
+                                    energyForecast?.confidence == EnergyForecastConfidence.HIGH ->
+                    "휴식 후 ${energyForecast.minimumEndPercent}~${energyForecast.maximumEndPercent}%"
+                energyForecast != null ->
+                    "참고 ${energyForecast.minimumEndPercent}~${energyForecast.maximumEndPercent}%"
+                                    else -> "배터리 예측 기록 부족"
+                                },
+                            ).joinToString("  ·  "),
                             color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
-                        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            CommaButton("소리 없이",{actions.configure(ui.session.settings.copy(sound=RestSound.SILENT))},Modifier.weight(1f))
-                            CommaButton("45분으로",{direct=false;select(45)},Modifier.weight(1f))
+                        FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),
+                            verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                            CommaButton("더 따뜻하게", {
+                                val range = ui.capabilities.climateTemperatureRange
+                                val base = ui.selectedClimateCelsius ?: recommendation.targetCelsius
+                                if (range != null && base != null) {
+                                    actions.selectClimateTarget((base + 1f).coerceAtMost(range.endInclusive))
+                                }
+                            }, enabled = ui.capabilities.climate == ControlSupport.SUPPORTED)
+                            CommaButton("소리 없이",{actions.configure(ui.session.settings.copy(sound=RestSound.SILENT))})
+                            CommaButton("45분으로",{direct=false;select(45)})
+                            CommaButton(if (ui.intentProcessing) "제안 확인 중" else "설정 말하기", onNaturalLanguage, enabled = !ui.intentProcessing)
                         }
-                        Text("차량 온도 조절·글레오·배터리 예측은 미연동입니다.",color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
+                        ui.intentResultMessage?.let { Text(it, color = CommaDesign.Muted) }
+                        Text(
+                            energyForecast?.let {
+                                val prefix = if (it.confidence == EnergyForecastConfidence.HIGH) "고신뢰도" else "제한적 참고"
+            "$prefix 실측 ${it.sampleCount}회 기준 종료 예상 ${it.minimumEndPercent}~${it.maximumEndPercent}% · ${it.limitation}"
+                            } ?: "충분한 실측 기록이 없어 종료 배터리는 예측하지 않습니다.",
+                            color=CommaDesign.Muted,
+                            style=MaterialTheme.typography.bodyMedium,
+                        )
                     }
                     CommaTimeCard(ui,direct,scale,
                         onPreset={direct=false;select(it)},
@@ -97,68 +242,118 @@ internal fun CommaSettingsScreen(ui: RestUiState, actions: RestUiActions, onBack
                 }
                 val settings: @Composable () -> Unit = {
                     Text("쉬는 동안만 바꿔요",style=MaterialTheme.typography.titleMedium)
-                    Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        CommaSettingCard(CommaGlyph.TEMPERATURE,"공조",
-                            recommendation.targetCelsius?.let{"권장 $it°C"}?:"추천 없음",
-                            if(ui.isDemo) "DEMO 가상 목표 설정" else "차량 제어 미연동",Modifier.weight(1f),
-                            onClick=actions.requestClimate,enabled=true)
-                        CommaSettingCard(CommaGlyph.SCREEN,"나루 화면",
+                    FlowRow(
+                        maxItemsInEachRow = 2,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        CommaSettingCard(CommaGlyph.TEMPERATURE,"온도",
+                            ui.selectedClimateCelsius?.let {
+                                "${if (ui.climateSelectionIsManual) "직접 선택" else "추천"} $it°C"
+                            } ?: recommendation.targetCelsius?.let{"권장 $it°C"}?:"추천 없음",
+                            if (ui.isDemo) "DEMO 가상 목표 설정" else when (ui.capabilities.climate) {
+                                ControlSupport.SUPPORTED -> "승인 후 차량에 적용·재확인"
+                                ControlSupport.UNSUPPORTED -> "차량 미지원 · 앱 휴식 계속"
+                                ControlSupport.UNKNOWN -> "지원 여부 확인 필요"
+                            },Modifier.weight(1f),
+                            onClick={editor="climate"},enabled=ui.capabilities.climate!=ControlSupport.UNSUPPORTED)
+                        CommaSettingCard(CommaGlyph.SCREEN,"화면",
                             "${(ui.session.settings.brightness*100).toInt()}%",
                             "앱 창 밝기 · 조절 가능",Modifier.weight(1f),onClick={editor="brightness"})
-                    }
-                    Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        CommaSettingCard(CommaGlyph.SOUND,"음향",
-                            if(ui.session.settings.sound==RestSound.SILENT) "소리 없이" else "잔잔한 톤",
-                            "자연음·미리 듣기 미구현",Modifier.weight(1f),onClick={editor="sound"})
-                        CommaSettingCard(CommaGlyph.LIGHT,"앱 무드 조명",
+                        CommaSettingCard(CommaGlyph.SOUND,"소리",
+                            when (ui.session.settings.sound) {
+                                RestSound.SILENT -> "소리 없이"
+                                RestSound.SOFT_TONE -> "잔잔한 톤"
+                                RestSound.RAIN -> "빗소리"
+                                RestSound.OCEAN -> "파도 소리"
+                                RestSound.FOREST -> "숲 소리"
+                                RestSound.LAKE -> "잔물결 소리"
+                            },
+                            "자연음 선택 · 미리 듣기",Modifier.weight(1f),onClick=onChooseSound)
+                        CommaSettingCard(CommaGlyph.LIGHT,"조명",
                             "${(ui.session.settings.lighting*100).toInt()}%",
-                            "앱 배경색 · 차량 조명 아님",Modifier.weight(1f),onClick={editor="lighting"})
+                            when (ui.capabilities.lighting) {
+                                ControlSupport.SUPPORTED -> "앱 화면 + 승인 후 차량 조명"
+                                ControlSupport.UNSUPPORTED -> "앱 화면만 적용 · 차량 미지원"
+                                ControlSupport.UNKNOWN -> "앱 화면 적용 · 차량 지원 확인 필요"
+                            },Modifier.weight(1f),onClick={editor="lighting"})
                     }
                 }
                 if(wide) {
                     Row(horizontalArrangement=Arrangement.spacedBy(18.dp)) {
-                        Column(Modifier.weight(1004f),verticalArrangement=Arrangement.spacedBy(18.dp)) { preparation() }
-                        Column(Modifier.weight(560f),verticalArrangement=Arrangement.spacedBy(12.dp)) { settings() }
+                        Column(Modifier.weight(1.18f),verticalArrangement=Arrangement.spacedBy(12.dp)) { preparation() }
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)) { settings() }
                     }
                 } else {
                     preparation()
                     Column(verticalArrangement=Arrangement.spacedBy(12.dp)) { settings() }
                 }
-                Text("종료 시 휴식 전 앱 설정으로 복구합니다. 차량 설정은 변경하지 않습니다.",
+                Text("종료 시 휴식 전 앱·지원 차량 설정으로 복구하며, 확인할 수 없는 항목은 완료 화면에 표시합니다.",
                     color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
                 if (this@BoxWithConstraints.maxWidth < 500.dp) {
-                    Column(Modifier.fillMaxWidth(), verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                        CommaButton("알람만 맞추기",actions.startAlarmOnly,Modifier.fillMaxWidth(),enabled=ui.isDemo && ui.canStartRest)
+                    Column(Modifier.weight(1f), verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                        if (ui.isDemo) {
+                            CommaButton("알람만 맞추기",actions.startAlarmOnly,Modifier.fillMaxWidth(),enabled=ui.canStartRest)
+                        }
                         CommaButton("이 설정으로 쉬기",actions.start,Modifier.fillMaxWidth(),filled=true,enabled=ui.canStartRest)
                     }
                 } else {
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp,Alignment.End)) {
-                        CommaButton("알람만 맞추기",actions.startAlarmOnly,enabled=ui.isDemo && ui.canStartRest)
+                    Row(Modifier.weight(1f),horizontalArrangement=Arrangement.spacedBy(12.dp,Alignment.End)) {
+                        if (ui.isDemo) {
+                            CommaButton("알람만 맞추기",actions.startAlarmOnly,enabled=ui.canStartRest)
+                        }
                         CommaButton("이 설정으로 쉬기",actions.start,filled=true,enabled=ui.canStartRest)
                     }
                 }
                 if(!ui.canStartRest) Text(parkingLabel(ui.vehicle.parkingStatus)+" · 상단의 연동/주차 상태 확인을 이용하세요.",color=CommaDesign.Muted)
-                Text(if(ui.isDemo) "DEMO 알람 전용: 앱 밝기·음향·가상 공조·조명 변경 없이 타이머만 시작합니다."
-                    else "‘알람만 맞추기’는 일반 모드에서 아직 사용할 수 없습니다.",
-                    color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
-                TextButton(onClick={showHistory=!showHistory}) {
-                    Text("휴식 기록 ${ui.history.records.size}개${if(ui.history.pendingCount>0) " · 미저장 ${ui.history.pendingCount}개" else ""} ${if(showHistory) "접기" else "보기"}")
+                ui.alarmTimingWarning?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (ui.isDemo) {
+                    Text("DEMO 알람 전용: 앱 밝기·음향·가상 공조·조명 변경 없이 타이머만 시작합니다.",
+                        color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick={showHistory=!showHistory}) {
+                        Text("휴식 기록 ${ui.history.records.size}개 ${if(showHistory) "접기" else "보기"}")
+                    }
+                    if(showHistory) RestHistoryCard(ui.history,true,actions.retrySave)
+                } else if (ui.history.pendingCount > 0 || ui.history.error != null) {
+                    Text("일부 휴식 기록 저장을 확인해야 합니다.", color=MaterialTheme.colorScheme.error)
                 }
-                if(showHistory) RestHistoryCard(ui.history,ui.isDemo,actions.retrySave)
-                Text("앱 강제 종료·재부팅 후 진행 중 타이머는 복구하지 않습니다.",
-                    color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
             }
         }
         if(editor!=null) {
             val input=draft.toIntOrNull()
-            AlertDialog(onDismissRequest={editor=null},
-                title={Text(when(editor) {"time"->"휴식 시간 직접 입력";"brightness"->"앱 화면 밝기";"lighting"->"앱 무드 조명";else->"앱 사운드"})},
+            AlertDialog(
+                onDismissRequest={editor=null},
+                containerColor = Color.White,
+                shape = RoundedCornerShape(28.dp),
+                title={Text(when(editor) {"time"->"휴식 시간 직접 입력";"climate"->"공조 온도 선택";"brightness"->"앱 화면 밝기";"lighting"->"앱 무드 조명";else->"앱 사운드"})},
                 text={
                     when(editor) {
                         "time" -> OutlinedTextField(draft,{draft=it.filter(Char::isDigit).take(3)},
                             label={Text("1~180분")},singleLine=true,isError=input==null||input !in 1..180,
                             keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),
                             supportingText={Text("스테퍼 외에도 1분 단위로 직접 입력할 수 있습니다.")})
+                        "climate" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            val range = ui.capabilities.climateTemperatureRange
+                            val target = ui.selectedClimateCelsius
+                                ?: recommendation.targetCelsius
+                                ?: range?.start
+                            Text("실내 ${ui.vehicle.indoorCelsius?.let { "$it°C" } ?: "정보 없음"} · 외부 ${ui.vehicle.outdoorCelsius?.let { "$it°C" } ?: "정보 없음"}")
+                            Text(recommendation.targetCelsius?.let { "규칙 기반 추천 $it°C" } ?: "추천 온도 없음")
+                            if (range == null || target == null) {
+                                Text("차량이 지원하는 공조 온도 범위를 확인할 수 없습니다.")
+                            } else {
+                                Text("${if (ui.climateSelectionIsManual) "직접 선택" else "추천 선택"} ${target}°C · 지원 ${range.start}~${range.endInclusive}°C")
+                                Slider(
+                                    value = target.coerceIn(range.start, range.endInclusive),
+                                    onValueChange = { actions.selectClimateTarget((it * 2f).toInt() / 2f) },
+                                    valueRange = range,
+                                )
+                                TextButton(onClick = { actions.selectClimateTarget(null) }) {
+                                    Text("추천 온도로 되돌리기")
+                                }
+                                Text("확인을 누르기 전에는 차량을 제어하지 않습니다.", color = CommaDesign.Muted)
+                            }
+                        }
                         "brightness" -> Column {
                             Text("${(ui.session.settings.brightness*100).toInt()}% · 휴식 시작 시 앱 창에 적용")
                             Slider(ui.session.settings.brightness,{actions.configure(ui.session.settings.copy(brightness=it))},valueRange=0.05f..1f)
@@ -168,18 +363,43 @@ internal fun CommaSettingsScreen(ui: RestUiState, actions: RestUiActions, onBack
                             Slider(ui.session.settings.lighting,{actions.configure(ui.session.settings.copy(lighting=it))})
                         }
                         else -> Column {
-                            Text("빗소리·해변 등 자연음은 아직 제공하지 않습니다.")
-                            TextButton(onClick={actions.configure(ui.session.settings.copy(sound=RestSound.SILENT))}) {
-                                Text("${if(ui.session.settings.sound==RestSound.SILENT) "✓ " else ""}소리 없이")
-                            }
-                            TextButton(onClick={actions.configure(ui.session.settings.copy(sound=RestSound.SOFT_TONE))}) {
-                                Text("${if(ui.session.settings.sound==RestSound.SOFT_TONE) "✓ " else ""}15초 간격의 짧은 톤")
+                            Text("자연음을 선택하면 3초 동안 미리 들려드려요.")
+                            listOf(
+                                RestSound.SILENT to "소리 없이",
+                                RestSound.RAIN to "빗소리",
+                                RestSound.OCEAN to "파도 소리",
+                                RestSound.FOREST to "숲 소리",
+                                RestSound.LAKE to "잔물결 소리",
+                                RestSound.SOFT_TONE to "15초 간격의 짧은 톤",
+                            ).forEach { (sound, label) ->
+                                TextButton(onClick = {
+                                    actions.configure(ui.session.settings.copy(sound = sound))
+                                    previewSound = sound.takeIf {
+                                        it == RestSound.RAIN || it == RestSound.OCEAN || it == RestSound.FOREST ||
+                                            it == RestSound.LAKE
+                                    }
+                                }) {
+                                    Text("${if (ui.session.settings.sound == sound) "✓ " else ""}$label")
+                                }
                             }
                         }
                     }
                 },
-                confirmButton={TextButton(enabled=editor!="time"||(input!=null&&input in 1..180),
-                    onClick={if(editor=="time"&&input!=null&&input in 1..180)select(input);editor=null}) {Text("확인")}},
+                confirmButton={TextButton(
+                    enabled = when (editor) {
+                        "time" -> input != null && input in 1..180
+                        "climate" -> ui.capabilities.climateTemperatureRange != null &&
+                            (ui.selectedClimateCelsius ?: recommendation.targetCelsius) != null
+                        else -> true
+                    },
+                    onClick={
+                        if(editor=="time"&&input!=null&&input in 1..180) select(input)
+                        if(editor=="climate") {
+                            if (ui.selectedClimateCelsius == null) actions.selectClimateTarget(null)
+                            actions.applySelectedClimate()
+                        }
+                        editor=null
+                    }) {Text(if(editor=="climate") "승인하고 적용" else "확인")}},
                 dismissButton={TextButton(onClick={editor=null}) {Text("닫기")}})
         }
     }
@@ -221,11 +441,15 @@ private fun CommaTimeCard(
             }
             Text("±5분 조절 · 시간을 누르면 1~180분 직접 입력",style=MaterialTheme.typography.bodyMedium,color=CommaDesign.Muted)
         }
-        Spacer(Modifier.height(if(direct)8.dp else 36.dp))
-        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.End) {
-            Text("종료 예정",Modifier.align(Alignment.Start),color=CommaDesign.Muted)
+        Spacer(Modifier.height(if(direct)4.dp else 8.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text("종료 예정",color=CommaDesign.Muted)
             Text(SimpleDateFormat("HH:mm",Locale.getDefault()).format(Date(ui.nowMillis+ui.session.selectedMinutes*60_000L)),
-                fontSize=(112*scale).coerceIn(48f,80f).sp,fontWeight=FontWeight.Bold)
+                fontSize=(72*scale).coerceIn(40f,56f).sp,fontWeight=FontWeight.Bold)
         }
     }
 }
@@ -235,16 +459,21 @@ private fun CommaSettingCard(
     glyph:CommaGlyph,label:String,value:String,detail:String,modifier:Modifier,
     onClick:()->Unit,enabled:Boolean=true
 ) {
-    Surface(onClick=onClick,enabled=enabled,modifier=modifier.heightIn(min=170.dp),
+    Surface(onClick=onClick,enabled=enabled,modifier=modifier.heightIn(min=108.dp),
         color=Color.White,shape=RoundedCornerShape(22.dp),shadowElevation=3.dp) {
-        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement=Arrangement.spacedBy(12.dp),
+            verticalAlignment=Alignment.CenterVertically,
+        ) {
             Surface(color=CommaDesign.Blue.copy(alpha=0.10f),shape=RoundedCornerShape(50)) {
-                CommaFallbackIcon(glyph,Modifier.padding(10.dp))
+                CommaFallbackIcon(glyph,Modifier.padding(9.dp))
             }
-            Spacer(Modifier.height(12.dp))
-            Text(label,color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
-            Text(value,style=MaterialTheme.typography.titleMedium)
-            Text(detail,color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                Text(label,color=CommaDesign.Muted,style=MaterialTheme.typography.bodyMedium)
+                Text(value,style=MaterialTheme.typography.titleMedium)
+                Text(detail,color=CommaDesign.Muted,style=MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }

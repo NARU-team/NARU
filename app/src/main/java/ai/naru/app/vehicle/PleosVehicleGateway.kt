@@ -32,7 +32,7 @@ import kotlin.coroutines.resume
  * - 설정·실내 온도: 운전석 단독 영역
  * - 앰비언트: 좌석 묶음 영역 (capability가 알려주는 영역을 그대로 쓴다)
  */
-class PleosVehicleGateway(context: Context) : VehicleGateway {
+class PleosVehicleGateway(context: Context) : VehicleGateway, ReadOnlyCarPropertyManagerProvider {
 
     private val appContext = context.applicationContext
     private val vehicle = Vehicle(appContext).apply { initialize() }
@@ -40,11 +40,13 @@ class PleosVehicleGateway(context: Context) : VehicleGateway {
     private val light = vehicle.getLight()
     private val evBattery = vehicle.getEvBattery()
 
-    private val propertyManager: CarPropertyManager? by lazy {
+    override val readOnlyCarPropertyManager: CarPropertyManager? by lazy {
         runCatching { Car.createCar(appContext).getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager }
             .onFailure { Log.w(TAG, "CarPropertyManager 연결 실패", it) }
             .getOrNull()
     }
+    private val propertyManager: CarPropertyManager?
+        get() = readOnlyCarPropertyManager
 
     /** capability 조회 후 채워진다. */
     private var cachedCapabilities: VehicleCapabilities? = null

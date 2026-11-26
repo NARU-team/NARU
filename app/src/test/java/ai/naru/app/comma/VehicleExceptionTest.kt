@@ -107,8 +107,17 @@ class VehicleExceptionTest {
             val ui=RestUiState(vehicleIssue=issue)
             assertTrue(issueActionAllowed(ui,vehicleIssueContent(ui).primary))
             assertTrue(issueActionAllowed(ui,VehicleIssueAction.RETURN))
-            VehicleIssueAction.entries.filter {it!=VehicleIssueAction.RETURN &&
-                it!=vehicleIssueContent(ui).primary}.forEach {assertFalse(issueActionAllowed(ui,it))}
+            val additional = if (issue in setOf(
+                    VehicleIssue.CONTROL_FAILURE,
+                    VehicleIssue.CONTROL_UNKNOWN,
+                )
+            ) setOf(VehicleIssueAction.CONTINUE_APP_ONLY) else emptySet()
+            VehicleIssueAction.entries.filter {
+                it != VehicleIssueAction.RETURN &&
+                    it != vehicleIssueContent(ui).primary &&
+                    it !in additional
+            }.forEach { assertFalse(issueActionAllowed(ui,it)) }
+            additional.forEach { assertTrue(issueActionAllowed(ui, it)) }
         }
         assertFalse(issueActionAllowed(RestUiState(),VehicleIssueAction.CONFIRM_LOCAL_PARKING))
     }

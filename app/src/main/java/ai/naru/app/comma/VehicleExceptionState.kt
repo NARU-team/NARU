@@ -4,8 +4,10 @@ enum class ParkingStatus { PARKED, NOT_PARKED, UNKNOWN }
 enum class DrivingStatus { DRIVING, NOT_DRIVING, UNKNOWN }
 enum class ControlSupport { SUPPORTED, UNSUPPORTED, UNKNOWN }
 data class VehicleCapabilities(
-    val climate:ControlSupport=ControlSupport.UNKNOWN,
-    val drivingSignal:ControlSupport=ControlSupport.UNKNOWN
+    val climate: ControlSupport = ControlSupport.UNKNOWN,
+    val drivingSignal: ControlSupport = ControlSupport.UNKNOWN,
+    val lighting: ControlSupport = ControlSupport.UNKNOWN,
+    val climateTemperatureRange: ClosedFloatingPointRange<Float>? = null,
 )
 enum class ControlOutcome { NOT_REQUESTED, PENDING, SUCCESS, FAILURE, UNSUPPORTED, UNKNOWN }
 data class VehicleControlState(

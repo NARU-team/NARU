@@ -17,6 +17,13 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += mapOf("room.schemaLocation" to "$projectDir/schemas")
+            }
+        }
 
         // 중계 서버 주소. local.properties의 naru.serverUrl (예: https://naru-server.vercel.app).
         // 비어 있으면 앱은 내장 샘플 데이터(DemoSiteRepository)를 쓴다.
@@ -82,4 +89,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     // 단위 테스트(JVM)에서는 Android의 org.json이 빈 껍데기라 실제 구현을 넣는다
     testImplementation(libs.json)
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
 }
